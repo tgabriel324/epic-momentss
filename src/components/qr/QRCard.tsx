@@ -30,6 +30,19 @@ const QRCard: React.FC<QRCardProps> = ({
   const [isCheckingAR, setIsCheckingAR] = useState(false);
   const navigate = useNavigate();
   
+  // Obter a URL base atual
+  const getBaseUrl = () => {
+    // Em ambiente de produção, use a URL real do site
+    if (window.location.hostname !== 'localhost' && !window.location.hostname.includes('.lovableproject.com')) {
+      return `${window.location.protocol}//${window.location.host}`;
+    }
+    // Para desenvolvimento e sandbox, use a URL relativa
+    return '';
+  };
+  
+  // URL única para AR
+  const arUrl = `${getBaseUrl()}/ar/${qrCode.id}`;
+  
   // Download QR code como PNG
   const handleDownload = () => {
     const canvas = document.getElementById(`qr-canvas-${qrCode.id}`) as HTMLCanvasElement;
@@ -172,9 +185,6 @@ const QRCard: React.FC<QRCardProps> = ({
   
   const recentActivity = getRecentActivity();
   const { style } = qrCode;
-  
-  // URL única para AR
-  const arUrl = `https://epicmoments.app/ar/${qrCode.id}`;
   
   return (
     <Card className="overflow-hidden flex flex-col h-full">

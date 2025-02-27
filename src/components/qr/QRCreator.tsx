@@ -33,6 +33,16 @@ const QRCreator: React.FC<QRCreatorProps> = ({ onClose }) => {
   const [qrForeground, setQrForeground] = useState<string>("#000000");
   const [qrBackground, setQrBackground] = useState<string>("#ffffff");
   
+  // Obter a URL base atual
+  const getBaseUrl = () => {
+    // Em ambiente de produção, use a URL real do site
+    if (window.location.hostname !== 'localhost' && !window.location.hostname.includes('.lovableproject.com')) {
+      return `${window.location.protocol}//${window.location.host}`;
+    }
+    // Para desenvolvimento e sandbox, use a URL relativa
+    return '';
+  };
+  
   // Filtrar vídeos com base na pesquisa
   useEffect(() => {
     if (searchQuery.trim() === "") {
@@ -69,7 +79,9 @@ const QRCreator: React.FC<QRCreatorProps> = ({ onClose }) => {
     if (!selectedVideo) return;
     
     const qrCodeId = `qr-${Date.now()}`;
-    const arUrl = `https://epicmoments.app/ar/${qrCodeId}`;
+    // Usar URL relativa ou absoluta dependendo do ambiente
+    const baseUrl = getBaseUrl();
+    const arUrl = `${baseUrl}/ar/${qrCodeId}`;
     
     // Adicionar o QR code à store
     addQRCode({
@@ -84,8 +96,8 @@ const QRCreator: React.FC<QRCreatorProps> = ({ onClose }) => {
         size: qrSize,
       },
       scans: 0,
-      scanHistory: [], // Adicionar a propriedade scanHistory que estava faltando
-      analyticsEnabled: true, // Adicionar a propriedade analyticsEnabled que estava faltando
+      scanHistory: [],
+      analyticsEnabled: true,
     });
     
     toast({
@@ -239,7 +251,7 @@ const QRCreator: React.FC<QRCreatorProps> = ({ onClose }) => {
                 style={{ background: qrBackground }}
               >
                 <QRCodeSVG
-                  value={`https://epicmoments.app/ar/preview-${selectedVideo.id}`}
+                  value={`${getBaseUrl()}/ar/preview-${selectedVideo.id}`}
                   size={qrSize}
                   fgColor={qrForeground}
                   bgColor={qrBackground}
