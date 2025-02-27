@@ -11,10 +11,6 @@ import * as THREE from "three";
 
 // Extender a interface do Window para incluir o WebXR
 declare global {
-  interface Navigator {
-    xr?: any;
-  }
-  
   interface Window {
     isSecureContext: boolean;
   }
