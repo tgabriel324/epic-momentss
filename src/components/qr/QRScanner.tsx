@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState } from "react";
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScanType } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { useVideoStore } from "@/store/videoStore";
 import { useQRCodeStore } from "@/store/qrCodeStore";
@@ -101,7 +101,9 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
         {
           fps: 10,
           qrbox: { width: 250, height: 250 },
-          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+          // Corrigido: removido formatsToSupport e adicionado scanType e formats
+          scanType: Html5QrcodeScanType.SCAN_TYPE_CAMERA,
+          formats: [Html5QrcodeSupportedFormats.QR_CODE],
           aspectRatio: 1.0
         },
         (decodedText) => {
