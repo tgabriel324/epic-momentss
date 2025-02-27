@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { QrCode, Library, Upload, Search, Plus, Download, Share2, Eye, Clock, PenSquare, Trash2, Camera, Smartphone } from "lucide-react";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Link } from "react-router-dom";
-import { QRCode as QRCodeReact } from "qrcode.react";
+import { QRCodeSVG } from "qrcode.react";
 import { saveAs } from "file-saver";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";

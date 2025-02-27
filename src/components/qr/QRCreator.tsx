@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { QRCode } from "qrcode.react";
+import { QRCodeSVG } from "qrcode.react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Check, QrCode, Search } from "lucide-react";
@@ -236,7 +236,7 @@ const QRCreator: React.FC<QRCreatorProps> = ({ onClose }) => {
                 className="p-4 rounded-lg border"
                 style={{ background: qrBackground }}
               >
-                <QRCode
+                <QRCodeSVG
                   value={`https://epicmoments.app/ar/preview-${selectedVideo.id}`}
                   size={qrSize}
                   fgColor={qrForeground}

@@ -2,7 +2,7 @@
 import React from "react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { QRCode as QRCodeReact } from "qrcode.react";
+import { QRCodeSVG } from "qrcode.react";
 import { saveAs } from "file-saver";
 import { Eye, PenSquare, Trash2, Clock, Download, Share2, Camera } from "lucide-react";
 import { QRCode } from "@/store/qrCodeStore";
@@ -105,7 +105,7 @@ const QRCard: React.FC<QRCardProps> = ({
           className="p-4 flex items-center justify-center bg-card rounded-lg border border-border"
           style={{ background: style.background }}
         >
-          <QRCodeReact
+          <QRCodeSVG
             id={`qr-canvas-${qrCode.id}`}
             value={arUrl}
             size={style.size}
@@ -119,7 +119,6 @@ const QRCard: React.FC<QRCardProps> = ({
               width: 24,
               excavate: true,
             } : undefined}
-            renderAs="canvas"
           />
         </div>
         

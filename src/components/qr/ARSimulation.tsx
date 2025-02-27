@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useQRCodeStore, QRCode } from "@/store/qrCodeStore";
 import { useVideoStore } from "@/store/videoStore";
-import { QRCode as QRCodeReact } from "qrcode.react";
+import { QRCodeSVG } from "qrcode.react";
 import { Camera, Smartphone, Scan, ArrowLeft } from "lucide-react";
 import VideoPlayer from "@/components/video/VideoPlayer";
 import { toast } from "@/hooks/use-toast";
@@ -91,7 +91,7 @@ const ARSimulation: React.FC<ARSimulationProps> = ({ qrCode, onClose }) => {
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="relative">
                       <div className="absolute -inset-4 border-2 border-primary animate-pulse rounded-lg"></div>
-                      <QRCodeReact
+                      <QRCodeSVG
                         value={arUrl}
                         size={180}
                         fgColor={qrCode.style.foreground}

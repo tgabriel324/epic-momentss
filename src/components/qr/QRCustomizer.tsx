@@ -1,7 +1,7 @@
 
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { QRCode as QRCodeReact } from "qrcode.react";
+import { QRCodeSVG } from "qrcode.react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Check, Upload } from "lucide-react";
@@ -208,7 +208,7 @@ const QRCustomizer: React.FC<QRCustomizerProps> = ({ qrCode, onClose }) => {
               borderRadius: `${qrStyle.cornerRadius * 0.5}px` 
             }}
           >
-            <QRCodeReact
+            <QRCodeSVG
               value={arUrl}
               size={qrStyle.size}
               fgColor={qrStyle.foreground}
