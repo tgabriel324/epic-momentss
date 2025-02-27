@@ -1,371 +1,407 @@
 
-import React, { useState, useEffect } from "react";
-import { toast } from "@/hooks/use-toast";
-import Container from "@/components/ui/container";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { QrCode, Library, Upload, Search, Plus, Download, Share2, Eye, Clock, PenSquare, Trash2, Camera, Smartphone } from "lucide-react";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
-import { Link } from "react-router-dom";
-import { QRCodeSVG } from "qrcode.react";
-import { saveAs } from "file-saver";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { useVideoStore, Video } from "@/store/videoStore";
-import { useQRCodeStore, QRCode as QRCodeType, defaultQRStyle } from "@/store/qrCodeStore";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useQRCodeStore } from "@/store/qrCodeStore";
+import { useVideoStore } from "@/store/videoStore";
 import QRCreator from "@/components/qr/QRCreator";
-import QRCard from "@/components/qr/QRCard";
 import QRCustomizer from "@/components/qr/QRCustomizer";
+import QRScanner from "@/components/qr/QRScanner";
+import QRCard from "@/components/qr/QRCard";
+import ARSimulation from "@/components/qr/ARSimulation";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import ARSimulation from "@/components/qr/ARSimulation";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { QrCode, Plus, Trash2, Settings, ScanLine } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useNavigate, useParams } from "react-router-dom";
 
 const QRCodes = () => {
-  const { videos } = useVideoStore();
   const { qrCodes, deleteQRCode } = useQRCodeStore();
+  const { videos } = useVideoStore();
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filteredQRCodes, setFilteredQRCodes] = useState<QRCodeType[]>([]);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
-  const [isCustomizeDialogOpen, setIsCustomizeDialogOpen] = useState(false);
-  const [selectedQRCode, setSelectedQRCode] = useState<QRCodeType | null>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isSimulationDialogOpen, setIsSimulationDialogOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isSimulateOpen, setIsSimulateOpen] = useState(false);
+  const [activeQRCode, setActiveQRCode] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("all");
   
-  // Filtrar QR codes
-  useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredQRCodes(qrCodes);
-    } else {
-      const query = searchQuery.toLowerCase();
-      setFilteredQRCodes(
-        qrCodes.filter(qrCode => 
-          qrCode.videoTitle.toLowerCase().includes(query)
-        )
-      );
+  // Filtrar QR codes com base na aba ativa
+  const filteredQRCodes = React.useMemo(() => {
+    if (activeTab === "all") return qrCodes;
+    
+    // Converter o timestamp para um objeto Date
+    const now = new Date();
+    
+    // Filtrar com base na data de criação
+    if (activeTab === "recent") {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(now.getDate() - 30);
+      
+      return qrCodes.filter(qr => new Date(qr.dateCreated) >= thirtyDaysAgo);
     }
-  }, [qrCodes, searchQuery]);
-  
-  // Abrir diálogo de criação de QR code
-  const handleCreateQRCode = () => {
-    if (videos.length === 0) {
-      toast({
-        title: "Nenhum vídeo encontrado",
-        description: "Você precisa fazer upload de vídeos antes de gerar QR codes.",
-        variant: "destructive"
+    
+    // Filtrar com base na última digitalização
+    if (activeTab === "active") {
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(now.getDate() - 90);
+      
+      return qrCodes.filter(qr => {
+        if (!qr.lastScan) return false;
+        return new Date(qr.lastScan) >= ninetyDaysAgo;
       });
-      return;
     }
     
-    setIsCreateDialogOpen(true);
+    return qrCodes;
+  }, [qrCodes, activeTab]);
+  
+  // Verificar se há QR codes
+  const hasQRCodes = qrCodes.length > 0;
+  
+  // Verificar se há vídeos
+  const hasVideos = videos.length > 0;
+  
+  // Abrir o componente de customização para um QR code específico
+  const handleCustomize = (qrCodeId: string) => {
+    setActiveQRCode(qrCodeId);
+    setIsCustomizeOpen(true);
   };
   
-  // Abrir diálogo de personalização de QR code
-  const handleCustomizeQRCode = (qrCode: QRCodeType) => {
-    setSelectedQRCode(qrCode);
-    setIsCustomizeDialogOpen(true);
+  // Abrir o diálogo de exclusão para um QR code específico
+  const handleDeletePrompt = (qrCodeId: string) => {
+    setActiveQRCode(qrCodeId);
+    setIsDeleteOpen(true);
   };
   
-  // Abrir diálogo de confirmação de exclusão
-  const handleDeleteClick = (qrCode: QRCodeType) => {
-    setSelectedQRCode(qrCode);
-    setIsDeleteDialogOpen(true);
+  // Excluir o QR code
+  const handleDelete = () => {
+    if (activeQRCode) {
+      deleteQRCode(activeQRCode);
+      setActiveQRCode(null);
+      setIsDeleteOpen(false);
+    }
   };
   
-  // Confirmar exclusão do QR code
-  const confirmDelete = () => {
-    if (!selectedQRCode) return;
-    
-    deleteQRCode(selectedQRCode.id);
-    setIsDeleteDialogOpen(false);
-    setSelectedQRCode(null);
-    
-    toast({
-      title: "QR code excluído",
-      description: "O QR code foi removido com sucesso."
-    });
+  // Abrir o componente de simulação para um QR code específico
+  const handleSimulateAR = (qrCodeId: string) => {
+    setActiveQRCode(qrCodeId);
+    setIsSimulateOpen(true);
   };
   
-  // Abrir simulação de AR
-  const handleSimulateAR = (qrCode: QRCodeType) => {
-    setSelectedQRCode(qrCode);
-    setIsSimulationDialogOpen(true);
+  // Ver estatísticas de um QR code específico
+  const handleViewStats = (qrCodeId: string) => {
+    navigate(`/qrcodes/stats/${qrCodeId}`);
   };
   
-  // Função para formatar data
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric'
-    });
-  };
-
+  // Efeito para sincronizar a URL com o estado das modais
+  React.useEffect(() => {
+    if (id && id === "create") {
+      setIsCreateOpen(true);
+    } else if (id && id.startsWith("customize-")) {
+      const qrId = id.replace("customize-", "");
+      setActiveQRCode(qrId);
+      setIsCustomizeOpen(true);
+    } else if (id && id.startsWith("simulate-")) {
+      const qrId = id.replace("simulate-", "");
+      setActiveQRCode(qrId);
+      setIsSimulateOpen(true);
+    } else if (id && id.startsWith("scanner")) {
+      setIsScannerOpen(true);
+    }
+  }, [id]);
+  
   return (
-    <Container>
-      <Breadcrumb className="mb-6">
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink href="/">Início</BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>QR Codes</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="page-title mb-0">Gerenciar QR Codes</h1>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" asChild>
-            <Link to="/library">
-              <Library className="mr-2 h-4 w-4" />
-              Biblioteca
-            </Link>
+    <div className="container py-6 max-w-7xl">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">QR Codes</h1>
+          <p className="text-muted-foreground">
+            Crie e gerencie QR codes para seus vídeos em realidade aumentada.
+          </p>
+        </div>
+        
+        <div className="flex space-x-2">
+          <Button 
+            variant="outline"
+            size="sm"
+            onClick={() => setIsScannerOpen(true)}
+          >
+            <ScanLine className="mr-2 h-4 w-4" />
+            Escanear QR Code
           </Button>
-          <Button asChild>
-            <Link to="/upload">
-              <Upload className="mr-2 h-4 w-4" />
-              Adicionar vídeo
-            </Link>
+          <Button 
+            onClick={() => setIsCreateOpen(true)}
+            disabled={!hasVideos}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Criar QR Code
           </Button>
         </div>
       </div>
       
-      <Card className="w-full mb-6">
-        <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <CardTitle>Seus QR Codes</CardTitle>
-              <CardDescription>
-                Gerencie todos os seus QR codes vinculados a vídeos
-              </CardDescription>
-            </div>
-            <Button onClick={handleCreateQRCode}>
-              <Plus className="mr-2 h-4 w-4" />
-              Criar QR Code
-            </Button>
+      {!hasVideos && (
+        <div className="rounded-lg border border-dashed p-10 text-center">
+          <QrCode className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-lg font-semibold mb-2">Nenhum vídeo encontrado</h3>
+          <p className="text-muted-foreground mb-4">
+            Você precisa adicionar vídeos antes de criar QR codes.
+          </p>
+          <Button onClick={() => navigate("/upload")}>
+            <Plus className="mr-2 h-4 w-4" />
+            Adicionar Vídeo
+          </Button>
+        </div>
+      )}
+      
+      {hasVideos && (
+        <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
+          <div className="flex justify-between items-center mb-4">
+            <TabsList>
+              <TabsTrigger value="all">Todos</TabsTrigger>
+              <TabsTrigger value="recent">Recentes</TabsTrigger>
+              <TabsTrigger value="active">Ativos</TabsTrigger>
+            </TabsList>
           </div>
-        </CardHeader>
-        
-        {qrCodes.length > 0 && (
-          <CardContent>
-            <div className="relative w-full mb-4">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar QR codes..."
-                className="pl-10"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </CardContent>
-        )}
-        
-        <CardContent>
-          {qrCodes.length === 0 ? (
-            <div className="min-h-[300px] flex flex-col items-center justify-center gap-4">
-              <div className="bg-secondary/10 p-4 rounded-full">
-                <QrCode className="h-12 w-12 text-secondary" />
-              </div>
-              <div className="text-center">
-                <h3 className="text-xl font-medium">Nenhum QR code encontrado</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Faça upload de vídeos para gerar QR codes vinculados
+          
+          <TabsContent value="all" className="mt-0">
+            {!hasQRCodes ? (
+              <div className="rounded-lg border border-dashed p-10 text-center">
+                <QrCode className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">Sem QR codes</h3>
+                <p className="text-muted-foreground mb-4">
+                  Você ainda não criou nenhum QR code. Crie seu primeiro QR code agora.
                 </p>
-              </div>
-              <div className="flex gap-2 mt-2">
-                <Button 
-                  variant="outline" 
-                  onClick={handleCreateQRCode}
-                >
-                  <QrCode className="mr-2 h-4 w-4" />
-                  Gerar QR code
-                </Button>
-                <Button asChild>
-                  <Link to="/upload">
-                    <Upload className="mr-2 h-4 w-4" />
-                    Fazer upload
-                  </Link>
+                <Button onClick={() => setIsCreateOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Criar QR Code
                 </Button>
               </div>
-            </div>
-          ) : filteredQRCodes.length === 0 ? (
-            <div className="min-h-[200px] flex flex-col items-center justify-center gap-4">
-              <div className="bg-secondary/10 p-4 rounded-full">
-                <Search className="h-12 w-12 text-secondary" />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filteredQRCodes.map((qrCode) => (
+                  <QRCard
+                    key={qrCode.id}
+                    qrCode={qrCode}
+                    onCustomize={() => handleCustomize(qrCode.id)}
+                    onDelete={() => handleDeletePrompt(qrCode.id)}
+                    onSimulateAR={() => handleSimulateAR(qrCode.id)}
+                    onViewStats={qrCode.analyticsEnabled ? () => handleViewStats(qrCode.id) : undefined}
+                  />
+                ))}
               </div>
-              <div className="text-center">
-                <h3 className="text-xl font-medium">Nenhum resultado encontrado</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Tente usar termos diferentes para sua busca
+            )}
+          </TabsContent>
+          
+          <TabsContent value="recent" className="mt-0">
+            {filteredQRCodes.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-10 text-center">
+                <QrCode className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">Nenhum QR code recente</h3>
+                <p className="text-muted-foreground mb-4">
+                  Você não tem QR codes criados nos últimos 30 dias.
                 </p>
+                <Button onClick={() => setIsCreateOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Criar QR Code
+                </Button>
               </div>
-              <Button 
-                variant="outline" 
-                onClick={() => setSearchQuery("")}
-              >
-                Limpar busca
-              </Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredQRCodes.map((qrCode) => (
-                <QRCard 
-                  key={qrCode.id}
-                  qrCode={qrCode}
-                  onCustomize={() => handleCustomizeQRCode(qrCode)}
-                  onDelete={() => handleDeleteClick(qrCode)}
-                  onSimulateAR={() => handleSimulateAR(qrCode)}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filteredQRCodes.map((qrCode) => (
+                  <QRCard
+                    key={qrCode.id}
+                    qrCode={qrCode}
+                    onCustomize={() => handleCustomize(qrCode.id)}
+                    onDelete={() => handleDeletePrompt(qrCode.id)}
+                    onSimulateAR={() => handleSimulateAR(qrCode.id)}
+                    onViewStats={qrCode.analyticsEnabled ? () => handleViewStats(qrCode.id) : undefined}
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+          
+          <TabsContent value="active" className="mt-0">
+            {filteredQRCodes.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-10 text-center">
+                <QrCode className="h-10 w-10 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">Nenhum QR code ativo</h3>
+                <p className="text-muted-foreground mb-4">
+                  Você não tem QR codes escaneados nos últimos 90 dias.
+                </p>
+                <Button onClick={() => setIsCreateOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Criar QR Code
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {filteredQRCodes.map((qrCode) => (
+                  <QRCard
+                    key={qrCode.id}
+                    qrCode={qrCode}
+                    onCustomize={() => handleCustomize(qrCode.id)}
+                    onDelete={() => handleDeletePrompt(qrCode.id)}
+                    onSimulateAR={() => handleSimulateAR(qrCode.id)}
+                    onViewStats={qrCode.analyticsEnabled ? () => handleViewStats(qrCode.id) : undefined}
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      )}
       
-      {/* Seção informativa sobre AR */}
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle>Realidade Aumentada com QR Codes</CardTitle>
-          <CardDescription>
-            Como funciona a experiência de AR com seus vídeos
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="flex flex-col items-center text-center p-4 rounded-lg border bg-card">
-              <div className="bg-primary/10 p-4 rounded-full mb-4">
-                <QrCode className="h-10 w-10 text-primary" />
-              </div>
-              <h3 className="text-lg font-medium mb-2">1. Gere QR Codes</h3>
-              <p className="text-sm text-muted-foreground">
-                Personalize e crie QR codes únicos para cada vídeo da sua biblioteca.
-              </p>
-            </div>
-            
-            <div className="flex flex-col items-center text-center p-4 rounded-lg border bg-card">
-              <div className="bg-primary/10 p-4 rounded-full mb-4">
-                <Smartphone className="h-10 w-10 text-primary" />
-              </div>
-              <h3 className="text-lg font-medium mb-2">2. Escaneie o código</h3>
-              <p className="text-sm text-muted-foreground">
-                Use qualquer app de leitura de QR code para escanear e acessar o conteúdo AR.
-              </p>
-            </div>
-            
-            <div className="flex flex-col items-center text-center p-4 rounded-lg border bg-card">
-              <div className="bg-primary/10 p-4 rounded-full mb-4">
-                <Camera className="h-10 w-10 text-primary" />
-              </div>
-              <h3 className="text-lg font-medium mb-2">3. Veja a mágica acontecer</h3>
-              <p className="text-sm text-muted-foreground">
-                O vídeo será exibido em realidade aumentada no ambiente real do usuário.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      
-      {/* Diálogo de criação de QR code */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      {/* Modal para criar QR Code */}
+      <Dialog 
+        open={isCreateOpen} 
+        onOpenChange={(open) => {
+          setIsCreateOpen(open);
+          if (!open) navigate("/qrcodes");
+        }}
+      >
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Criar QR Code</DialogTitle>
+            <DialogTitle>Criar novo QR Code</DialogTitle>
             <DialogDescription>
-              Selecione um vídeo para gerar um QR code vinculado
+              Selecione um vídeo e personalize seu QR Code para realidade aumentada.
             </DialogDescription>
           </DialogHeader>
-          
-          <QRCreator 
-            onClose={() => setIsCreateDialogOpen(false)}
-          />
+          <QRCreator onClose={() => {
+            setIsCreateOpen(false);
+            navigate("/qrcodes");
+          }} />
         </DialogContent>
       </Dialog>
       
-      {/* Diálogo de personalização de QR code */}
-      <Dialog open={isCustomizeDialogOpen} onOpenChange={setIsCustomizeDialogOpen}>
+      {/* Modal para escanear QR Code */}
+      <Dialog 
+        open={isScannerOpen} 
+        onOpenChange={(open) => {
+          setIsScannerOpen(open);
+          if (!open) navigate("/qrcodes");
+        }}
+      >
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Escanear QR Code</DialogTitle>
+            <DialogDescription>
+              Use a câmera para escanear um QR code e ver o vídeo associado.
+            </DialogDescription>
+          </DialogHeader>
+          <QRScanner onClose={() => {
+            setIsScannerOpen(false);
+            navigate("/qrcodes");
+          }} />
+        </DialogContent>
+      </Dialog>
+      
+      {/* Modal para customizar QR Code */}
+      <Dialog 
+        open={isCustomizeOpen} 
+        onOpenChange={(open) => {
+          setIsCustomizeOpen(open);
+          if (!open) {
+            setActiveQRCode(null);
+            navigate("/qrcodes");
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Personalizar QR Code</DialogTitle>
             <DialogDescription>
-              Ajuste as cores e o estilo do seu QR code
+              Modifique a aparência do seu QR Code para realidade aumentada.
             </DialogDescription>
           </DialogHeader>
           
-          {selectedQRCode && (
+          {activeQRCode && (
             <QRCustomizer 
-              qrCode={selectedQRCode}
-              onClose={() => setIsCustomizeDialogOpen(false)}
+              qrCodeId={activeQRCode}
+              onClose={() => {
+                setIsCustomizeOpen(false);
+                setActiveQRCode(null);
+                navigate("/qrcodes");
+              }}
             />
           )}
         </DialogContent>
       </Dialog>
       
-      {/* Diálogo de confirmação de exclusão */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Excluir QR code</DialogTitle>
-            <DialogDescription>
-              Tem certeza que deseja excluir este QR code? Esta ação não pode ser desfeita.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsDeleteDialogOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={confirmDelete}
-            >
+      {/* Modal de confirmação para excluir QR Code */}
+      <AlertDialog 
+        open={isDeleteOpen} 
+        onOpenChange={(open) => {
+          setIsDeleteOpen(open);
+          if (!open) setActiveQRCode(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir QR Code?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O QR Code será permanentemente excluído.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>
               <Trash2 className="mr-2 h-4 w-4" />
               Excluir
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       
-      {/* Diálogo de simulação de AR */}
-      <Dialog open={isSimulationDialogOpen} onOpenChange={setIsSimulationDialogOpen}>
-        <DialogContent className="sm:max-w-[90vw] max-w-[800px]">
+      {/* Modal para simular experiência AR */}
+      <Dialog 
+        open={isSimulateOpen} 
+        onOpenChange={(open) => {
+          setIsSimulateOpen(open);
+          if (!open) {
+            setActiveQRCode(null);
+            navigate("/qrcodes");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>Simulação de Realidade Aumentada</DialogTitle>
             <DialogDescription>
-              Veja como seu vídeo aparecerá quando o QR code for escaneado
+              Veja como sua experiência AR ficará quando alguém escanear o QR Code.
             </DialogDescription>
           </DialogHeader>
           
-          {selectedQRCode && (
-            <ARSimulation 
-              qrCode={selectedQRCode}
-              onClose={() => setIsSimulationDialogOpen(false)}
+          {activeQRCode && (
+            <ARSimulation
+              qrCode={qrCodes.find(qr => qr.id === activeQRCode)!}
+              onClose={() => {
+                setIsSimulateOpen(false);
+                setActiveQRCode(null);
+                navigate("/qrcodes");
+              }}
             />
           )}
         </DialogContent>
       </Dialog>
-    </Container>
+    </div>
   );
 };
 
