@@ -334,7 +334,7 @@ const QRCodes = () => {
           
           {activeQRCode && (
             <QRCustomizer 
-              qrCodeId={activeQRCode}
+              qrCode={qrCodes.find(qr => qr.id === activeQRCode)!}
               onClose={() => {
                 setIsCustomizeOpen(false);
                 setActiveQRCode(null);

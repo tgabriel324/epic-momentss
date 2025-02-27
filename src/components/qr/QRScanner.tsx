@@ -8,6 +8,12 @@ import { toast } from "@/hooks/use-toast";
 import { ArrowLeft, Camera, PauseCircle, PlayCircle } from "lucide-react";
 import VideoPlayer from "@/components/video/VideoPlayer";
 
+// Definição do tipo CameraDevice que corresponde ao retorno da biblioteca
+interface CameraDevice {
+  id: string;
+  label: string;
+}
+
 interface QRScannerProps {
   onClose: () => void;
 }
@@ -22,7 +28,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
   } | null>(null);
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [cameraId, setCameraId] = useState<string>("");
-  const [cameras, setCameras] = useState<{deviceId: string, label: string}[]>([]);
+  const [cameras, setCameras] = useState<CameraDevice[]>([]);
   
   const { videos, getVideoById } = useVideoStore();
   const { qrCodes, incrementScans, recordScanDetails } = useQRCodeStore();
@@ -34,7 +40,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
         const devices = await Html5Qrcode.getCameras();
         if (devices && devices.length) {
           setCameras(devices);
-          setCameraId(devices[0].deviceId);
+          setCameraId(devices[0].id);
         } else {
           toast({
             title: "Câmera não encontrada",
@@ -238,8 +244,8 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
             disabled={scanning}
           >
             {cameras.map((camera) => (
-              <option key={camera.deviceId} value={camera.deviceId}>
-                {camera.label || `Câmera ${camera.deviceId.substring(0, 5)}...`}
+              <option key={camera.id} value={camera.id}>
+                {camera.label || `Câmera ${camera.id.substring(0, 5)}...`}
               </option>
             ))}
           </select>
