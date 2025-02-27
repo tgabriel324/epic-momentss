@@ -7,6 +7,69 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, Camera, Play, Pause, RefreshCw, Smartphone } from "lucide-react";
+import * as THREE from "three";
+
+// Interfaces para tipos do WebXR
+interface XRSession extends EventTarget {
+  end(): Promise<void>;
+  requestReferenceSpace(type: string): Promise<XRReferenceSpace>;
+  requestHitTestSource(options: { space: XRReferenceSpace }): Promise<XRHitTestSource>;
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject): void;
+  removeEventListener(type: string, listener: EventListenerOrEventListenerObject): void;
+}
+
+interface XRReferenceSpace {
+  // Reference space properties
+}
+
+interface XRHitTestSource {
+  // Hit test source properties
+}
+
+interface XRFrame {
+  getHitTestResults(hitTestSource: XRHitTestSource): XRHitTestResult[];
+  getPose(space1: XRSpace, space2: XRReferenceSpace): XRPose | null;
+  getViewerPose(referenceSpace: XRReferenceSpace): XRViewerPose | null;
+  getReferenceSpace(type: string): XRReferenceSpace;
+}
+
+interface XRHitTestResult {
+  getPose(referenceSpace: XRReferenceSpace): XRPose | null;
+}
+
+interface XRPose {
+  transform: XRRigidTransform;
+}
+
+interface XRViewerPose {
+  transform: XRRigidTransform;
+}
+
+interface XRRigidTransform {
+  position: {
+    x: number;
+    y: number;
+    z: number;
+  };
+}
+
+interface XRSpace {
+  // XRSpace properties
+}
+
+// Extender a interface do Window para incluir o WebXR
+declare global {
+  interface Navigator {
+    xr?: {
+      isSessionSupported(mode: string): Promise<boolean>;
+      requestSession(mode: string, options?: any): Promise<XRSession>;
+    };
+  }
+  
+  interface Window {
+    isSecureContext: boolean;
+  }
+}
 
 const AR = () => {
   const { id } = useParams<{ id: string }>();
@@ -56,7 +119,6 @@ const AR = () => {
       }
 
       try {
-        // @ts-ignore - TypeScript pode não reconhecer a API WebXR
         const supported = await navigator.xr.isSessionSupported('immersive-ar');
         setIsARSupported(supported);
         
@@ -99,20 +161,14 @@ const AR = () => {
         clearInterval(interval);
         setLoadingState('ready');
         
-        // Importar Three.js dinamicamente
-        import('three').then((THREE) => {
-          setupThreeJS(THREE);
-        }).catch(error => {
-          console.error("Erro ao carregar Three.js:", error);
-          setErrorMessage("Erro ao carregar recursos 3D");
-          setLoadingState('error');
-        });
+        // Importar Three.js dinamicamente não é mais necessário, já que importamos no início
+        setupThreeJS();
       }
     }, 200);
   };
 
   // Configurar Three.js
-  const setupThreeJS = (THREE: any) => {
+  const setupThreeJS = () => {
     if (!canvasRef.current) return;
 
     // Criar cena, câmera e renderer
@@ -194,7 +250,6 @@ const AR = () => {
     }
 
     try {
-      // @ts-ignore - TypeScript pode não reconhecer a API WebXR
       const session = await navigator.xr.requestSession('immersive-ar', {
         requiredFeatures: ['hit-test', 'dom-overlay'],
         domOverlay: { root: document.body }
@@ -231,11 +286,8 @@ const AR = () => {
   const setupARSession = (session: XRSession) => {
     if (!rendererRef.current) return;
 
-    // @ts-ignore - TypeScript pode não reconhecer a API WebXR
     rendererRef.current.xr.enabled = true;
-    // @ts-ignore
     rendererRef.current.xr.setReferenceSpaceType('local');
-    // @ts-ignore
     rendererRef.current.xr.setSession(session);
 
     // Configurar hit testing para detectar superfícies
@@ -246,7 +298,6 @@ const AR = () => {
     });
 
     // Iniciar o loop de renderização
-    // @ts-ignore
     rendererRef.current.setAnimationLoop(renderFrame);
   };
 
@@ -256,12 +307,10 @@ const AR = () => {
 
     // Detectar superfícies
     if (xrHitTestSourceRef.current) {
-      // @ts-ignore - TypeScript pode não reconhecer a API WebXR
       const hitTestResults = frame.getHitTestResults(xrHitTestSourceRef.current);
       
       if (hitTestResults.length > 0) {
         const hit = hitTestResults[0];
-        // @ts-ignore
         const pose = hit.getPose(frame.getReferenceSpace('local'));
         
         if (pose && videoPlaneRef.current && !videoPlaneRef.current.parent) {
@@ -273,7 +322,6 @@ const AR = () => {
           );
           
           // Orientar o vídeo para a câmera
-          // @ts-ignore
           const viewerPose = frame.getViewerPose(frame.getReferenceSpace('local'));
           if (viewerPose) {
             const cameraPosition = new THREE.Vector3(
