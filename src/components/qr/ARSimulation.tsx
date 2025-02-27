@@ -16,7 +16,7 @@ interface ARSimulationProps {
 
 const ARSimulation: React.FC<ARSimulationProps> = ({ qrCode, onClose }) => {
   const { getVideoById } = useVideoStore();
-  const { incrementScans } = useQRCodeStore();
+  const { incrementScans, recordScanDetails } = useQRCodeStore();
   const video = getVideoById(qrCode.videoId);
   
   const [step, setStep] = useState<"scan" | "processing" | "ar">("scan");
@@ -41,6 +41,29 @@ const ARSimulation: React.FC<ARSimulationProps> = ({ qrCode, onClose }) => {
             setStep("ar");
             incrementScans(qrCode.id);
             
+            // Registrar detalhes simulados
+            if (qrCode.analyticsEnabled) {
+              try {
+                // Tentar obter localização
+                fetch('https://ipapi.co/json/')
+                  .then(res => res.json())
+                  .then(data => {
+                    recordScanDetails(qrCode.id, {
+                      location: {
+                        country: data.country_name,
+                        city: data.city,
+                      }
+                    });
+                  })
+                  .catch(() => {
+                    // Fallback se a localização não for disponível
+                    recordScanDetails(qrCode.id, {});
+                  });
+              } catch (error) {
+                console.error("Erro ao registrar detalhes:", error);
+              }
+            }
+            
             toast({
               title: "QR Code escaneado",
               description: "Experiência de AR iniciada com sucesso."
@@ -53,7 +76,7 @@ const ARSimulation: React.FC<ARSimulationProps> = ({ qrCode, onClose }) => {
       
       return () => clearInterval(interval);
     }
-  }, [step, qrCode.id, incrementScans]);
+  }, [step, qrCode.id, incrementScans, recordScanDetails, qrCode.analyticsEnabled]);
   
   // Iniciar o escaneamento
   const handleStartScan = () => {

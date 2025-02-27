@@ -4,7 +4,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { QRCodeSVG } from "qrcode.react";
 import { saveAs } from "file-saver";
-import { Eye, PenSquare, Trash2, Clock, Download, Share2, Camera, Globe } from "lucide-react";
+import { Eye, PenSquare, Trash2, Clock, Download, Share2, Camera, Globe, BarChart } from "lucide-react";
 import { QRCode } from "@/store/qrCodeStore";
 import { useVideoStore } from "@/store/videoStore";
 import { toast } from "@/hooks/use-toast";
@@ -15,13 +15,15 @@ interface QRCardProps {
   onCustomize: () => void;
   onDelete: () => void;
   onSimulateAR: () => void;
+  onViewStats?: () => void;
 }
 
 const QRCard: React.FC<QRCardProps> = ({
   qrCode,
   onCustomize,
   onDelete,
-  onSimulateAR
+  onSimulateAR,
+  onViewStats
 }) => {
   const { getVideoById } = useVideoStore();
   const video = getVideoById(qrCode.videoId);
@@ -144,6 +146,31 @@ const QRCard: React.FC<QRCardProps> = ({
     });
   };
   
+  // Obter informações de uso nos últimos 7 dias
+  const getRecentActivity = () => {
+    if (!qrCode.scanHistory || qrCode.scanHistory.length === 0) {
+      return { count: 0, percentage: 0 };
+    }
+    
+    const now = new Date();
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(now.getDate() - 7);
+    
+    const recentScans = qrCode.scanHistory.filter(
+      scan => new Date(scan.timestamp) >= sevenDaysAgo
+    );
+    
+    const percentage = qrCode.scans > 0 
+      ? Math.round((recentScans.length / qrCode.scans) * 100) 
+      : 0;
+    
+    return {
+      count: recentScans.length,
+      percentage
+    };
+  };
+  
+  const recentActivity = getRecentActivity();
   const { style } = qrCode;
   
   // URL única para AR
@@ -195,6 +222,24 @@ const QRCard: React.FC<QRCardProps> = ({
               Último escaneamento: {formatDate(qrCode.lastScan)}
             </div>
           )}
+          
+          {/* Atividade recente */}
+          {qrCode.analyticsEnabled && qrCode.scans > 0 && (
+            <div className="mt-2 text-xs">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Últimos 7 dias:</span>
+                <span className="font-medium">{recentActivity.count} escaneamentos</span>
+              </div>
+              {qrCode.scans > 5 && (
+                <div className="mt-1 bg-muted rounded-full h-1.5 overflow-hidden">
+                  <div 
+                    className="bg-primary h-full rounded-full" 
+                    style={{ width: `${recentActivity.percentage}%` }}
+                  ></div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
       
@@ -238,6 +283,18 @@ const QRCard: React.FC<QRCardProps> = ({
             Excluir
           </Button>
         </div>
+        
+        {qrCode.analyticsEnabled && onViewStats && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={onViewStats} 
+            className="w-full mt-1"
+          >
+            <BarChart className="mr-2 h-4 w-4" />
+            Ver estatísticas detalhadas
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );
