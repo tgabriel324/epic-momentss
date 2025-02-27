@@ -8,6 +8,7 @@ import { Eye, PenSquare, Trash2, Clock, Download, Share2, Camera, Globe } from "
 import { QRCode } from "@/store/qrCodeStore";
 import { useVideoStore } from "@/store/videoStore";
 import { toast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 interface QRCardProps {
   qrCode: QRCode;
@@ -25,6 +26,7 @@ const QRCard: React.FC<QRCardProps> = ({
   const { getVideoById } = useVideoStore();
   const video = getVideoById(qrCode.videoId);
   const [isCheckingAR, setIsCheckingAR] = useState(false);
+  const navigate = useNavigate();
   
   // Download QR code como PNG
   const handleDownload = () => {
@@ -97,8 +99,8 @@ const QRCard: React.FC<QRCardProps> = ({
               description: "Seu dispositivo suporta Realidade Aumentada. Você pode experimentar a visualização AR real."
             });
             
-            // Abrir experiência AR (em uma implementação real, isso dispararia a sessão WebXR)
-            window.open(`https://epicmoments.app/ar/${qrCode.id}?realAR=true`, "_blank");
+            // Redirecionar para a experiência AR real
+            navigate(`/ar/${qrCode.id}`);
           } else {
             toast({
               title: "AR não suportado",
@@ -106,7 +108,7 @@ const QRCard: React.FC<QRCardProps> = ({
               variant: "destructive"
             });
             // Cair de volta para a simulação
-            onSimulateAR();
+            navigate(`/qrcodes/simulate/${qrCode.id}`);
           }
         })
         .catch((error) => {
@@ -118,7 +120,7 @@ const QRCard: React.FC<QRCardProps> = ({
             variant: "destructive"
           });
           // Cair de volta para a simulação
-          onSimulateAR();
+          navigate(`/qrcodes/simulate/${qrCode.id}`);
         });
     } else {
       setIsCheckingAR(false);
@@ -128,7 +130,7 @@ const QRCard: React.FC<QRCardProps> = ({
         variant: "destructive"
       });
       // Cair de volta para a simulação
-      onSimulateAR();
+      navigate(`/qrcodes/simulate/${qrCode.id}`);
     }
   };
   
