@@ -11,6 +11,7 @@ import Index from "./pages/Index";
 import Upload from "./pages/Upload";
 import Library from "./pages/Library";
 import QRCodes from "./pages/QRCodes";
+import VideoEdit from "./pages/VideoEdit";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
               <Route path="/upload" element={<Upload />} />
               <Route path="/library" element={<Library />} />
               <Route path="/qrcodes" element={<QRCodes />} />
+              <Route path="/video/edit/:id" element={<VideoEdit />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>
