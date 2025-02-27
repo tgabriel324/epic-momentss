@@ -17,7 +17,7 @@ const Index = () => {
             <span className="text-primary"> QR Codes Inteligentes</span>
           </h1>
           <p className="text-xl text-secondary-foreground max-w-2xl mx-auto mb-8">
-            Crie, gerencie e visualize seus vídeos através de QR codes com realidade aumentada
+            Epic Moments: Crie, gerencie e visualize seus vídeos através de QR codes com realidade aumentada
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <Button size="lg" asChild>
@@ -113,7 +113,7 @@ const Index = () => {
             Pronto para começar?
           </h2>
           <p className="text-xl text-secondary-foreground max-w-2xl mx-auto mb-8">
-            Comece a criar seus QR codes com vídeos agora mesmo
+            Comece a criar seus Epic Moments agora mesmo
           </p>
           <Button size="lg" asChild>
             <Link to="/upload">Começar agora</Link>

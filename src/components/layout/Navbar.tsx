@@ -19,7 +19,7 @@ const Navbar: React.FC = () => {
       <div className="container mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <QrCode className="h-8 w-8 text-primary" />
-          <Link to="/" className="logo-text">QR Vídeo</Link>
+          <Link to="/" className="logo-text">Epic Moments</Link>
         </div>
 
         <NavigationMenu>
