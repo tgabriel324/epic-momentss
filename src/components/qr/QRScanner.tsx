@@ -1,11 +1,11 @@
 
 import React, { useEffect, useRef, useState } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { useVideoStore } from "@/store/videoStore";
 import { useQRCodeStore } from "@/store/qrCodeStore";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Camera, PauseCircle, PlayCircle } from "lucide-react";
+import { ArrowLeft, Camera, PauseCircle, PlayCircle, RefreshCw } from "lucide-react";
 import VideoPlayer from "@/components/video/VideoPlayer";
 
 // Definição do tipo CameraDevice que corresponde ao retorno da biblioteca
@@ -29,6 +29,8 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [cameraId, setCameraId] = useState<string>("");
   const [cameras, setCameras] = useState<CameraDevice[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasPermission, setHasPermission] = useState(true);
   
   const { videos, getVideoById } = useVideoStore();
   const { qrCodes, incrementScans, recordScanDetails } = useQRCodeStore();
@@ -36,17 +38,20 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
   // Inicializar o scanner
   useEffect(() => {
     const initializeScanner = async () => {
+      setIsLoading(true);
       try {
         const devices = await Html5Qrcode.getCameras();
         if (devices && devices.length) {
           setCameras(devices);
           setCameraId(devices[0].id);
+          setHasPermission(true);
         } else {
           toast({
             title: "Câmera não encontrada",
             description: "Não foi possível encontrar uma câmera no seu dispositivo.",
             variant: "destructive"
           });
+          setHasPermission(false);
         }
       } catch (error) {
         console.error("Erro ao acessar a câmera:", error);
@@ -55,6 +60,9 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
           description: "Verifique se você concedeu permissão para a câmera.",
           variant: "destructive"
         });
+        setHasPermission(false);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -92,16 +100,27 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
         cameraId,
         {
           fps: 10,
-          qrbox: { width: 250, height: 250 }
+          qrbox: { width: 250, height: 250 },
+          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+          aspectRatio: 1.0
         },
         (decodedText) => {
           handleSuccessfulScan(decodedText);
         },
         (errorMessage) => {
-          // Ignorar erros de decodificação durante o escaneamento
+          // Suprimir logs de depuração durante o escaneamento normal
+          if (errorMessage.includes("No MultiFormat Readers were able to detect the code")) {
+            // Ignorar silenciosamente - este erro é comum durante o escaneamento
+            return;
+          }
           console.log(errorMessage);
         }
       );
+      
+      toast({
+        title: "Scanner iniciado",
+        description: "Posicione um QR code na área indicada para escanear."
+      });
     } catch (error) {
       console.error("Erro ao iniciar o scanner:", error);
       setScanning(false);
@@ -219,6 +238,64 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
       setTimeout(() => startScanning(), 500);
     }
   };
+
+  // Solicitar permissão de câmera novamente
+  const requestCameraPermission = async () => {
+    try {
+      await navigator.mediaDevices.getUserMedia({ video: true });
+      setHasPermission(true);
+      // Reiniciar o processo de detecção de câmeras
+      const devices = await Html5Qrcode.getCameras();
+      if (devices && devices.length) {
+        setCameras(devices);
+        setCameraId(devices[0].id);
+      }
+    } catch (error) {
+      console.error("Erro ao solicitar permissão da câmera:", error);
+      toast({
+        title: "Permissão negada",
+        description: "Você precisa conceder permissão para a câmera para usar o scanner.",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <div className="animate-spin mb-4">
+          <RefreshCw className="h-8 w-8 text-primary" />
+        </div>
+        <p className="text-center text-muted-foreground">
+          Inicializando câmera...
+        </p>
+      </div>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 space-y-4">
+        <div className="text-center mb-4">
+          <Camera className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-medium mb-2">Permissão da Câmera Necessária</h3>
+          <p className="text-muted-foreground mb-4">
+            Para escanear QR codes, você precisa permitir o acesso à câmera do seu dispositivo.
+          </p>
+        </div>
+        <div className="flex space-x-4">
+          <Button variant="outline" onClick={onClose}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar
+          </Button>
+          <Button onClick={requestCameraPermission}>
+            <Camera className="mr-2 h-4 w-4" />
+            Permitir Acesso
+          </Button>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="flex flex-col space-y-4">

@@ -95,6 +95,20 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       }
     }
 
+    // Se autoPlay é verdadeiro, tente reproduzir o vídeo
+    if (autoPlay) {
+      videoElement.play().catch(err => {
+        console.warn("Reprodução automática falhou:", err);
+        // Muitos navegadores bloqueiam autoplay sem interação do usuário
+        // Vamos definir mudo=true e tentar novamente, já que vídeos mudos 
+        // geralmente são permitidos para autoplay
+        videoElement.muted = true;
+        videoElement.play().catch(e => {
+          console.error("Reprodução automática falhou mesmo com mudo:", e);
+        });
+      });
+    }
+
     return () => {
       // Cleanup
       videoElement.removeEventListener("waiting", handleWaiting);
@@ -108,7 +122,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       videoElement.src = "";
       videoElement.load();
     };
-  }, [videoUrl, preload, quality, onLoadStart, onLoadedData, onError]);
+  }, [videoUrl, preload, quality, onLoadStart, onLoadedData, onError, autoPlay]);
+
+  // Atualizar o estado de reprodução quando a prop autoPlay mudar
+  useEffect(() => {
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
+
+    if (autoPlay && !isPlaying) {
+      videoElement.play().catch(err => {
+        console.warn("Reprodução automática falhou na atualização:", err);
+      });
+    }
+  }, [autoPlay, isPlaying]);
 
   return (
     <div className="w-full relative rounded-lg overflow-hidden">
