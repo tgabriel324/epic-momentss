@@ -84,6 +84,8 @@ const QRCreator: React.FC<QRCreatorProps> = ({ onClose }) => {
         size: qrSize,
       },
       scans: 0,
+      scanHistory: [], // Adicionar a propriedade scanHistory que estava faltando
+      analyticsEnabled: true, // Adicionar a propriedade analyticsEnabled que estava faltando
     });
     
     toast({
