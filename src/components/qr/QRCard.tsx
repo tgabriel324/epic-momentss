@@ -1,10 +1,10 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { QRCodeSVG } from "qrcode.react";
 import { saveAs } from "file-saver";
-import { Eye, PenSquare, Trash2, Clock, Download, Share2, Camera } from "lucide-react";
+import { Eye, PenSquare, Trash2, Clock, Download, Share2, Camera, Globe } from "lucide-react";
 import { QRCode } from "@/store/qrCodeStore";
 import { useVideoStore } from "@/store/videoStore";
 import { toast } from "@/hooks/use-toast";
@@ -24,6 +24,7 @@ const QRCard: React.FC<QRCardProps> = ({
 }) => {
   const { getVideoById } = useVideoStore();
   const video = getVideoById(qrCode.videoId);
+  const [isCheckingAR, setIsCheckingAR] = useState(false);
   
   // Download QR code como PNG
   const handleDownload = () => {
@@ -79,6 +80,58 @@ const QRCard: React.FC<QRCardProps> = ({
     }
   };
   
+  // Verificar suporte a WebXR no dispositivo
+  const checkARSupport = () => {
+    setIsCheckingAR(true);
+    
+    // Verificar se o navegador suporta WebXR
+    if ('xr' in navigator) {
+      // @ts-ignore - TypeScript pode não reconhecer a API WebXR
+      navigator.xr.isSessionSupported('immersive-ar')
+        .then((supported) => {
+          setIsCheckingAR(false);
+          
+          if (supported) {
+            toast({
+              title: "AR suportado!",
+              description: "Seu dispositivo suporta Realidade Aumentada. Você pode experimentar a visualização AR real."
+            });
+            
+            // Abrir experiência AR (em uma implementação real, isso dispararia a sessão WebXR)
+            window.open(`https://epicmoments.app/ar/${qrCode.id}?realAR=true`, "_blank");
+          } else {
+            toast({
+              title: "AR não suportado",
+              description: "Seu dispositivo não suporta Realidade Aumentada. Você pode usar a simulação.",
+              variant: "destructive"
+            });
+            // Cair de volta para a simulação
+            onSimulateAR();
+          }
+        })
+        .catch((error) => {
+          console.error('Erro ao verificar suporte a AR:', error);
+          setIsCheckingAR(false);
+          toast({
+            title: "Erro ao verificar AR",
+            description: "Houve um problema ao verificar o suporte a AR. Tentando simulação.",
+            variant: "destructive"
+          });
+          // Cair de volta para a simulação
+          onSimulateAR();
+        });
+    } else {
+      setIsCheckingAR(false);
+      toast({
+        title: "WebXR não disponível",
+        description: "Seu navegador não suporta WebXR. Abrindo simulação.",
+        variant: "destructive"
+      });
+      // Cair de volta para a simulação
+      onSimulateAR();
+    }
+  };
+  
   // Formatar data
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -91,7 +144,7 @@ const QRCard: React.FC<QRCardProps> = ({
   
   const { style } = qrCode;
   
-  // URL única para AR (simulada)
+  // URL única para AR
   const arUrl = `https://epicmoments.app/ar/${qrCode.id}`;
   
   return (
@@ -156,9 +209,23 @@ const QRCard: React.FC<QRCardProps> = ({
         </div>
         
         <div className="grid grid-cols-3 gap-2 w-full">
-          <Button variant="ghost" size="sm" onClick={onSimulateAR}>
-            <Camera className="mr-1 h-4 w-4" />
-            Simular
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={checkARSupport} 
+            disabled={isCheckingAR}
+          >
+            {isCheckingAR ? (
+              <span className="flex items-center">
+                <Globe className="mr-1 h-4 w-4 animate-spin" />
+                Verificando...
+              </span>
+            ) : (
+              <>
+                <Camera className="mr-1 h-4 w-4" />
+                AR Real
+              </>
+            )}
           </Button>
           <Button variant="ghost" size="sm" onClick={onCustomize}>
             <PenSquare className="mr-1 h-4 w-4" />
