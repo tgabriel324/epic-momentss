@@ -298,14 +298,6 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
   
   return (
     <div className="flex flex-col space-y-4">
-      <div className="flex justify-between items-center mb-2">
-        <h2 className="text-2xl font-bold">Scanner de QR Code</h2>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar
-        </Button>
-      </div>
-      
       {/* Seletor de câmera */}
       {cameras.length > 1 && (
         <div className="mb-4">
@@ -329,7 +321,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
       )}
       
       {/* Área de visualização da câmera */}
-      <div className="relative aspect-video">
+      <div className="relative aspect-square md:aspect-video w-full">
         {!scannedVideo ? (
           <div className="h-full">
             {/* Elemento onde o scanner será renderizado */}
@@ -373,7 +365,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
       <div className="flex justify-center mt-4 space-x-4">
         {!scannedVideo ? (
           <Button
-            className="w-40"
+            className="w-full sm:w-auto"
             onClick={scanning ? stopScanning : startScanning}
             variant={scanning ? "destructive" : "default"}
           >
@@ -390,16 +382,21 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
             )}
           </Button>
         ) : (
-          <div className="flex space-x-4">
-            <Button variant="outline" onClick={() => {
-              setScannedVideo(null);
-              startScanning();
-            }}>
+          <div className="flex flex-col sm:flex-row w-full space-y-2 sm:space-y-0 sm:space-x-4">
+            <Button 
+              variant="outline" 
+              className="w-full sm:w-auto"
+              onClick={() => {
+                setScannedVideo(null);
+                startScanning();
+              }}
+            >
               <Camera className="mr-2 h-5 w-5" />
               Escanear novamente
             </Button>
             <Button 
               variant={videoPlaying ? "destructive" : "default"}
+              className="w-full sm:w-auto"
               onClick={() => setVideoPlaying(!videoPlaying)}
             >
               {videoPlaying ? (

@@ -20,6 +20,7 @@ import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { initializeAuth } from "./store/authStore";
 import { supabase } from "./integrations/supabase/client";
+import QRScannerPage from "./pages/QRScannerPage";
 
 const queryClient = new QueryClient();
 
@@ -113,6 +114,11 @@ const App = () => {
                         <Route path="/qrcodes" element={
                           <ProtectedRoute>
                             <QRCodes />
+                          </ProtectedRoute>
+                        } />
+                        <Route path="/qrcodes/scanner" element={
+                          <ProtectedRoute>
+                            <QRScannerPage />
                           </ProtectedRoute>
                         } />
                         <Route path="/video/edit/:id" element={

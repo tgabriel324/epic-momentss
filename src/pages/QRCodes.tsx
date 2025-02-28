@@ -5,7 +5,6 @@ import { useQRCodeStore } from "@/store/qrCodeStore";
 import { useVideoStore } from "@/store/videoStore";
 import QRCreator from "@/components/qr/QRCreator";
 import QRCustomizer from "@/components/qr/QRCustomizer";
-import QRScanner from "@/components/qr/QRScanner";
 import QRCard from "@/components/qr/QRCard";
 import ARSimulation from "@/components/qr/ARSimulation";
 import {
@@ -25,7 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { QrCode, Plus, Trash2, Settings, ScanLine } from "lucide-react";
+import { QrCode, Plus, Trash2, ScanLine } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -36,7 +35,6 @@ const QRCodes = () => {
   const { id } = useParams<{ id: string }>();
   
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isCustomizeOpen, setIsCustomizeOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isSimulateOpen, setIsSimulateOpen] = useState(false);
@@ -110,6 +108,11 @@ const QRCodes = () => {
     navigate(`/qrcodes/stats/${qrCodeId}`);
   };
   
+  // Navegação para o scanner
+  const handleScannerOpen = () => {
+    navigate("/qrcodes/scanner");
+  };
+  
   // Efeito para sincronizar a URL com o estado das modais
   React.useEffect(() => {
     if (id && id === "create") {
@@ -122,8 +125,6 @@ const QRCodes = () => {
       const qrId = id.replace("simulate-", "");
       setActiveQRCode(qrId);
       setIsSimulateOpen(true);
-    } else if (id && id.startsWith("scanner")) {
-      setIsScannerOpen(true);
     }
   }, [id]);
   
@@ -137,11 +138,11 @@ const QRCodes = () => {
           </p>
         </div>
         
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Button 
             variant="outline"
-            size="sm"
-            onClick={() => setIsScannerOpen(true)}
+            className="flex-grow sm:flex-grow-0"
+            onClick={handleScannerOpen}
           >
             <ScanLine className="mr-2 h-4 w-4" />
             Escanear QR Code
@@ -149,6 +150,7 @@ const QRCodes = () => {
           <Button 
             onClick={() => setIsCreateOpen(true)}
             disabled={!hasVideos}
+            className="flex-grow sm:flex-grow-0"
           >
             <Plus className="mr-2 h-4 w-4" />
             Criar QR Code
@@ -172,7 +174,7 @@ const QRCodes = () => {
       
       {hasVideos && (
         <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-center mb-4 overflow-x-auto">
             <TabsList>
               <TabsTrigger value="all">Todos</TabsTrigger>
               <TabsTrigger value="recent">Recentes</TabsTrigger>
@@ -286,28 +288,6 @@ const QRCodes = () => {
           </DialogHeader>
           <QRCreator onClose={() => {
             setIsCreateOpen(false);
-            navigate("/qrcodes");
-          }} />
-        </DialogContent>
-      </Dialog>
-      
-      {/* Modal para escanear QR Code */}
-      <Dialog 
-        open={isScannerOpen} 
-        onOpenChange={(open) => {
-          setIsScannerOpen(open);
-          if (!open) navigate("/qrcodes");
-        }}
-      >
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Escanear QR Code</DialogTitle>
-            <DialogDescription>
-              Use a câmera para escanear um QR code e ver o vídeo associado.
-            </DialogDescription>
-          </DialogHeader>
-          <QRScanner onClose={() => {
-            setIsScannerOpen(false);
             navigate("/qrcodes");
           }} />
         </DialogContent>
