@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { Json } from "@/integrations/supabase/types";
 
 export interface QRCodeStyle {
   foreground: string;
@@ -125,11 +126,13 @@ export const useQRCodeStore = create<QRCodeStore>()(
             videoId: qr.video_id,
             videoTitle: qr.video_title,
             dateCreated: qr.date_created,
-            style: qr.style,
-            scans: qr.scans,
+            // Convertendo Json para QRCodeStyle
+            style: qr.style as unknown as QRCodeStyle,
+            scans: qr.scans || 0,
             lastScan: qr.last_scan,
-            scanHistory: qr.scan_history || [],
-            analyticsEnabled: qr.analytics_enabled
+            // Convertendo Json[] para QRCodeScan[]
+            scanHistory: (qr.scan_history as unknown as QRCodeScan[]) || [],
+            analyticsEnabled: qr.analytics_enabled || false
           }));
           
           set({ qrCodes: formattedQRCodes, loading: false });
@@ -147,9 +150,10 @@ export const useQRCodeStore = create<QRCodeStore>()(
           .insert({
             video_id: qrCode.videoId,
             video_title: qrCode.videoTitle,
-            style: qrCode.style,
-            scan_history: qrCode.scanHistory || [],
-            analytics_enabled: qrCode.analyticsEnabled !== false
+            style: qrCode.style as unknown as Json,
+            scan_history: qrCode.scanHistory as unknown as Json[] || [],
+            analytics_enabled: qrCode.analyticsEnabled !== false,
+            user_id: (await supabase.auth.getUser()).data.user?.id
           })
           .select()
           .single();
@@ -170,11 +174,11 @@ export const useQRCodeStore = create<QRCodeStore>()(
           videoId: newQRCode.video_id,
           videoTitle: newQRCode.video_title,
           dateCreated: newQRCode.date_created,
-          style: newQRCode.style,
+          style: newQRCode.style as unknown as QRCodeStyle,
           scans: newQRCode.scans || 0,
           lastScan: newQRCode.last_scan,
-          scanHistory: newQRCode.scan_history || [],
-          analyticsEnabled: newQRCode.analytics_enabled
+          scanHistory: (newQRCode.scan_history as unknown as QRCodeScan[]) || [],
+          analyticsEnabled: newQRCode.analytics_enabled || false
         };
         
         set((state) => ({ 
@@ -192,7 +196,7 @@ export const useQRCodeStore = create<QRCodeStore>()(
         // Preparar dados para atualização
         const updateData: any = {};
         
-        if (updates.style) updateData.style = updates.style;
+        if (updates.style) updateData.style = updates.style as unknown as Json;
         if (updates.analyticsEnabled !== undefined) updateData.analytics_enabled = updates.analyticsEnabled;
         if (updates.videoTitle) updateData.video_title = updates.videoTitle;
         
@@ -286,7 +290,7 @@ export const useQRCodeStore = create<QRCodeStore>()(
           .update({
             scans: qrCode.scans + 1,
             last_scan: now,
-            scan_history: qrCode.analyticsEnabled ? scanHistory : undefined
+            scan_history: qrCode.analyticsEnabled ? (scanHistory as unknown as Json[]) : undefined
           })
           .eq('id', id);
         
@@ -327,7 +331,7 @@ export const useQRCodeStore = create<QRCodeStore>()(
         const { error } = await supabase
           .from('qr_codes')
           .update({
-            scan_history: scanHistory
+            scan_history: scanHistory as unknown as Json[]
           })
           .eq('id', id);
         

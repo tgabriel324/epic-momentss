@@ -75,7 +75,7 @@ export const useVideoStore = create<VideoStore>()(
             duration: video.duration || 0,
             size: video.size || 0,
             views: video.views || 0,
-            storagePath: video.url?.replace('https://cncqxbhjhfotbrvhtplq.supabase.co/storage/v1/object/public/videos/', '')
+            storagePath: video.url ? video.url.replace(`${supabase.supabaseUrl}/storage/v1/object/public/videos/`, '') : undefined
           }));
           
           set({ videos: formattedVideos, loading: false });
@@ -110,12 +110,24 @@ export const useVideoStore = create<VideoStore>()(
           }
           
           storagePath = filePath;
-          videoUrl = `${supabase.storageUrl}/object/public/videos/${filePath}`;
+          videoUrl = `${supabase.supabaseUrl}/storage/v1/object/public/videos/${filePath}`;
         }
         
         // Converter tags de string para array se necessário
         const tags = Array.isArray(video.tags) ? video.tags : 
           typeof video.tags === 'string' ? video.tags.split(',').map(tag => tag.trim()) : [];
+        
+        // Obter o ID do usuário autenticado
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          toast({
+            title: "Erro de autenticação",
+            description: "Você precisa estar logado para realizar esta ação.",
+            variant: "destructive"
+          });
+          return;
+        }
         
         // Inserir no banco de dados
         const { data: newVideo, error } = await supabase
@@ -128,7 +140,8 @@ export const useVideoStore = create<VideoStore>()(
             category: video.category,
             tags: tags,
             size: video.size,
-            duration: video.duration
+            duration: video.duration,
+            user_id: user.id
           })
           .select()
           .single();
@@ -148,7 +161,7 @@ export const useVideoStore = create<VideoStore>()(
           id: newVideo.id,
           title: newVideo.title,
           description: newVideo.description || "",
-          url: newVideo.url,
+          url: newVideo.url || "",
           thumbnailUrl: newVideo.thumbnail_url || "/placeholder.svg",
           category: newVideo.category || "geral",
           tags: newVideo.tags || [],
@@ -172,8 +185,11 @@ export const useVideoStore = create<VideoStore>()(
       // Atualizar vídeo existente
       updateVideo: async (id, updates) => {
         // Converter tags de string para array se necessário
-        const tags = updates.tags && Array.isArray(updates.tags) ? updates.tags : 
-          updates.tags ? updates.tags.split(',').map(tag => tag.trim()) : undefined;
+        let tags;
+        if (updates.tags) {
+          tags = Array.isArray(updates.tags) ? updates.tags : 
+            typeof updates.tags === 'string' ? updates.tags.split(',').map(tag => tag.trim()) : undefined;
+        }
         
         // Atualizar no banco de dados
         const { error } = await supabase
@@ -253,18 +269,23 @@ export const useVideoStore = create<VideoStore>()(
       
       // Incrementar contagem de visualizações
       incrementViews: async (id) => {
-        const { error } = await supabase.rpc('increment_views', { video_id: id });
-        
-        if (error) {
+        try {
+          // Vamos usar o RPC function criada no Supabase
+          const { error } = await supabase.rpc('increment_views', { video_id: id });
+          
+          if (error) {
+            console.error('Erro ao incrementar visualizações:', error);
+            return;
+          }
+          
+          set((state) => ({
+            videos: state.videos.map((video) => 
+              video.id === id ? { ...video, views: video.views + 1 } : video
+            )
+          }));
+        } catch (error) {
           console.error('Erro ao incrementar visualizações:', error);
-          return;
         }
-        
-        set((state) => ({
-          videos: state.videos.map((video) => 
-            video.id === id ? { ...video, views: video.views + 1 } : video
-          )
-        }));
       },
       
       // Obter vídeo por ID
