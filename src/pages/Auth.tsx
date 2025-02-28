@@ -147,7 +147,13 @@ const Auth = () => {
     <Container className="max-w-md py-10">
       <Card>
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl text-center">Epic Moments</CardTitle>
+          <div className="flex justify-center">
+            <img 
+              src="/og-image.png" 
+              alt="Epic Moments Logo" 
+              className="h-16 mb-2"
+            />
+          </div>
           <CardDescription className="text-center">
             Entre na sua conta ou crie uma nova
           </CardDescription>
