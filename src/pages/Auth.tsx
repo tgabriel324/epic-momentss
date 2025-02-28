@@ -148,11 +148,14 @@ const Auth = () => {
       <Card>
         <CardHeader className="space-y-1">
           <div className="flex justify-center">
-            <img 
-              src="/og-image.png" 
-              alt="Epic Moments Logo" 
-              className="h-16 mb-2"
-            />
+            <div className="flex items-center">
+              <img 
+                src="/lovable-uploads/eca1daa0-d180-497b-a269-82b5bfb9fe20.png" 
+                alt="Epic Moments Logo" 
+                className="h-12"
+              />
+              <span className="text-2xl font-bold text-primary ml-2">Epic Moments</span>
+            </div>
           </div>
           <CardDescription className="text-center">
             Entre na sua conta ou crie uma nova
