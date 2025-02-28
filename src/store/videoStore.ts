@@ -1,6 +1,8 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 // Definição do tipo de vídeo
 export interface Video {
@@ -16,18 +18,21 @@ export interface Video {
   size: number;
   views: number;
   localFile?: File; // Para armazenar o arquivo local (simulação de upload)
+  storagePath?: string; // Caminho no Storage do Supabase
 }
 
 // Interface da store de vídeos
 interface VideoStore {
   videos: Video[];
-  addVideo: (video: Video) => void;
-  updateVideo: (id: string, updates: Partial<Video>) => void;
-  deleteVideo: (id: string) => void;
-  incrementViews: (id: string) => void;
+  loading: boolean;
+  addVideo: (video: Video) => Promise<void>;
+  updateVideo: (id: string, updates: Partial<Video>) => Promise<void>;
+  deleteVideo: (id: string) => Promise<void>;
+  incrementViews: (id: string) => Promise<void>;
   getVideoById: (id: string) => Video | undefined;
   searchVideos: (query: string) => Video[];
   filterVideosByCategory: (category: string) => Video[];
+  fetchVideos: () => Promise<void>;
 }
 
 // Criação da store com persistência local
@@ -35,34 +40,232 @@ export const useVideoStore = create<VideoStore>()(
   persist(
     (set, get) => ({
       videos: [],
+      loading: false,
+      
+      // Buscar vídeos do Supabase
+      fetchVideos: async () => {
+        set({ loading: true });
+        
+        try {
+          const { data: videos, error } = await supabase
+            .from('videos')
+            .select('*')
+            .order('date_uploaded', { ascending: false });
+          
+          if (error) {
+            console.error('Erro ao buscar vídeos:', error);
+            toast({
+              title: "Erro ao carregar vídeos",
+              description: error.message,
+              variant: "destructive"
+            });
+            return;
+          }
+          
+          // Converter os vídeos do formato do banco para o formato da store
+          const formattedVideos = videos.map(video => ({
+            id: video.id,
+            title: video.title,
+            description: video.description || "",
+            url: video.url || "",
+            thumbnailUrl: video.thumbnail_url || "/placeholder.svg",
+            category: video.category || "geral",
+            tags: video.tags || [],
+            dateUploaded: video.date_uploaded,
+            duration: video.duration || 0,
+            size: video.size || 0,
+            views: video.views || 0,
+            storagePath: video.url?.replace('https://cncqxbhjhfotbrvhtplq.supabase.co/storage/v1/object/public/videos/', '')
+          }));
+          
+          set({ videos: formattedVideos, loading: false });
+        } catch (error) {
+          console.error('Erro ao buscar vídeos:', error);
+          set({ loading: false });
+        }
+      },
       
       // Adicionar novo vídeo
-      addVideo: (video) => 
+      addVideo: async (video) => {
+        let storagePath = null;
+        let videoUrl = video.url;
+        
+        // Se houver um arquivo local, fazer upload para o Storage
+        if (video.localFile) {
+          const fileExt = video.localFile.name.split('.').pop();
+          const filePath = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+          
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('videos')
+            .upload(filePath, video.localFile);
+          
+          if (uploadError) {
+            console.error('Erro ao fazer upload do vídeo:', uploadError);
+            toast({
+              title: "Erro no upload",
+              description: uploadError.message,
+              variant: "destructive"
+            });
+            return;
+          }
+          
+          storagePath = filePath;
+          videoUrl = `${supabase.storageUrl}/object/public/videos/${filePath}`;
+        }
+        
+        // Converter tags de string para array se necessário
+        const tags = Array.isArray(video.tags) ? video.tags : 
+          typeof video.tags === 'string' ? video.tags.split(',').map(tag => tag.trim()) : [];
+        
+        // Inserir no banco de dados
+        const { data: newVideo, error } = await supabase
+          .from('videos')
+          .insert({
+            title: video.title,
+            description: video.description,
+            url: videoUrl,
+            thumbnail_url: video.thumbnailUrl,
+            category: video.category,
+            tags: tags,
+            size: video.size,
+            duration: video.duration
+          })
+          .select()
+          .single();
+        
+        if (error) {
+          console.error('Erro ao adicionar vídeo:', error);
+          toast({
+            title: "Erro ao salvar vídeo",
+            description: error.message,
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        // Converter para o formato da store e adicionar ao estado
+        const formattedVideo: Video = {
+          id: newVideo.id,
+          title: newVideo.title,
+          description: newVideo.description || "",
+          url: newVideo.url,
+          thumbnailUrl: newVideo.thumbnail_url || "/placeholder.svg",
+          category: newVideo.category || "geral",
+          tags: newVideo.tags || [],
+          dateUploaded: newVideo.date_uploaded,
+          duration: newVideo.duration || 0,
+          size: newVideo.size || 0,
+          views: newVideo.views || 0,
+          storagePath
+        };
+        
         set((state) => ({ 
-          videos: [video, ...state.videos] 
-        })),
+          videos: [formattedVideo, ...state.videos] 
+        }));
+        
+        toast({
+          title: "Vídeo adicionado",
+          description: "O vídeo foi adicionado com sucesso à biblioteca."
+        });
+      },
       
       // Atualizar vídeo existente
-      updateVideo: (id, updates) => 
+      updateVideo: async (id, updates) => {
+        // Converter tags de string para array se necessário
+        const tags = updates.tags && Array.isArray(updates.tags) ? updates.tags : 
+          updates.tags ? updates.tags.split(',').map(tag => tag.trim()) : undefined;
+        
+        // Atualizar no banco de dados
+        const { error } = await supabase
+          .from('videos')
+          .update({
+            title: updates.title,
+            description: updates.description,
+            category: updates.category,
+            tags: tags
+          })
+          .eq('id', id);
+        
+        if (error) {
+          console.error('Erro ao atualizar vídeo:', error);
+          toast({
+            title: "Erro ao atualizar vídeo",
+            description: error.message,
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        // Atualizar o estado local
         set((state) => ({
           videos: state.videos.map((video) => 
             video.id === id ? { ...video, ...updates } : video
           )
-        })),
+        }));
+        
+        toast({
+          title: "Vídeo atualizado",
+          description: "As alterações foram salvas com sucesso."
+        });
+      },
       
       // Excluir vídeo
-      deleteVideo: (id) => 
+      deleteVideo: async (id) => {
+        const video = get().videos.find(v => v.id === id);
+        
+        // Se o vídeo tiver um caminho no storage, excluir o arquivo
+        if (video?.storagePath) {
+          const { error: storageError } = await supabase.storage
+            .from('videos')
+            .remove([video.storagePath]);
+          
+          if (storageError) {
+            console.error('Erro ao excluir arquivo do storage:', storageError);
+          }
+        }
+        
+        // Excluir do banco de dados
+        const { error } = await supabase
+          .from('videos')
+          .delete()
+          .eq('id', id);
+        
+        if (error) {
+          console.error('Erro ao excluir vídeo:', error);
+          toast({
+            title: "Erro ao excluir vídeo",
+            description: error.message,
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        // Atualizar o estado local
         set((state) => ({
           videos: state.videos.filter((video) => video.id !== id)
-        })),
+        }));
+        
+        toast({
+          title: "Vídeo excluído",
+          description: "O vídeo foi removido da sua biblioteca."
+        });
+      },
       
       // Incrementar contagem de visualizações
-      incrementViews: (id) => 
+      incrementViews: async (id) => {
+        const { error } = await supabase.rpc('increment_views', { video_id: id });
+        
+        if (error) {
+          console.error('Erro ao incrementar visualizações:', error);
+          return;
+        }
+        
         set((state) => ({
           videos: state.videos.map((video) => 
             video.id === id ? { ...video, views: video.views + 1 } : video
           )
-        })),
+        }));
+      },
       
       // Obter vídeo por ID
       getVideoById: (id) => 

@@ -9,7 +9,119 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          nome: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id: string
+          nome?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          nome?: string | null
+        }
+        Relationships: []
+      }
+      qr_codes: {
+        Row: {
+          analytics_enabled: boolean | null
+          date_created: string
+          id: string
+          last_scan: string | null
+          scan_history: Json[] | null
+          scans: number | null
+          style: Json
+          user_id: string
+          video_id: string
+          video_title: string
+        }
+        Insert: {
+          analytics_enabled?: boolean | null
+          date_created?: string
+          id?: string
+          last_scan?: string | null
+          scan_history?: Json[] | null
+          scans?: number | null
+          style: Json
+          user_id: string
+          video_id: string
+          video_title: string
+        }
+        Update: {
+          analytics_enabled?: boolean | null
+          date_created?: string
+          id?: string
+          last_scan?: string | null
+          scan_history?: Json[] | null
+          scans?: number | null
+          style?: Json
+          user_id?: string
+          video_id?: string
+          video_title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qr_codes_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      videos: {
+        Row: {
+          category: string | null
+          date_uploaded: string
+          description: string | null
+          duration: number | null
+          id: string
+          size: number | null
+          tags: string[] | null
+          thumbnail_url: string | null
+          title: string
+          url: string | null
+          user_id: string
+          views: number | null
+        }
+        Insert: {
+          category?: string | null
+          date_uploaded?: string
+          description?: string | null
+          duration?: number | null
+          id?: string
+          size?: number | null
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          title: string
+          url?: string | null
+          user_id: string
+          views?: number | null
+        }
+        Update: {
+          category?: string | null
+          date_uploaded?: string
+          description?: string | null
+          duration?: number | null
+          id?: string
+          size?: number | null
+          tags?: string[] | null
+          thumbnail_url?: string | null
+          title?: string
+          url?: string | null
+          user_id?: string
+          views?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

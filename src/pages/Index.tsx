@@ -1,126 +1,87 @@
 
-import React from "react";
-import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useEffect } from "react";
 import Container from "@/components/ui/container";
-import { QrCode, Upload, Library } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Upload, BookOpen, QrCode, BookMarked } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useAuthStore } from "@/store/authStore";
+import { useVideoStore } from "@/store/videoStore";
+import { useQRCodeStore } from "@/store/qrCodeStore";
 
 const Index = () => {
+  const { session } = useAuthStore();
+  const { videos, fetchVideos } = useVideoStore();
+  const { qrCodes, fetchQRCodes } = useQRCodeStore();
+  
+  // Carregar dados quando o componente montar
+  useEffect(() => {
+    if (session) {
+      fetchVideos();
+      fetchQRCodes();
+    }
+  }, [session]);
+  
   return (
-    <div className="min-h-screen">
-      {/* Hero Section */}
-      <section className="bg-gradient-to-b from-background to-secondary/10 py-16">
-        <Container className="text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            Transforme seus vídeos com 
-            <span className="text-primary"> QR Codes Inteligentes</span>
-          </h1>
-          <p className="text-xl text-secondary-foreground max-w-2xl mx-auto mb-8">
-            Epic Moments: Crie, gerencie e visualize seus vídeos através de QR codes com realidade aumentada
-          </p>
-          <div className="flex flex-wrap justify-center gap-4">
-            <Button size="lg" asChild>
-              <Link to="/upload">
-                <Upload className="mr-2 h-5 w-5" />
-                Começar Upload
-              </Link>
-            </Button>
-            <Button size="lg" variant="outline" asChild>
-              <Link to="/qrcodes">
-                <QrCode className="mr-2 h-5 w-5" />
-                Ver QR Codes
-              </Link>
+    <Container className="py-10">
+      <div className="max-w-3xl mx-auto text-center">
+        <h1 className="text-4xl font-bold tracking-tight mb-4">Epic Moments</h1>
+        <p className="text-lg text-muted-foreground mb-8">
+          Transforme seus vídeos em experiências interativas de realidade aumentada com QR codes personalizados.
+        </p>
+        
+        {!session ? (
+          <div className="flex flex-col items-center gap-4">
+            <p className="text-muted-foreground mb-2">
+              Faça login para começar a criar suas experiências em RA
+            </p>
+            <Button asChild size="lg">
+              <Link to="/auth">Começar agora</Link>
             </Button>
           </div>
-        </Container>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-16">
-        <Container>
-          <h2 className="text-3xl font-bold text-center mb-12">
-            Recursos Principais
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <Card>
-              <CardHeader>
-                <Upload className="h-12 w-12 text-primary mb-2" />
-                <CardTitle>Upload Simples</CardTitle>
-                <CardDescription>
-                  Arraste e solte vídeos ou selecione para upload rápido
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-secondary-foreground">
-                  Suporte a diversos formatos de vídeo. Processe e otimize automaticamente para melhor desempenho.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <Button variant="link" asChild>
-                  <Link to="/upload">Fazer upload</Link>
-                </Button>
-              </CardFooter>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <Library className="h-12 w-12 text-primary mb-2" />
-                <CardTitle>Biblioteca Organizada</CardTitle>
-                <CardDescription>
-                  Gerencie todos os seus vídeos em um só lugar
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-secondary-foreground">
-                  Adicione metadados, categorize e organize seus vídeos para fácil acesso e gerenciamento.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <Button variant="link" asChild>
-                  <Link to="/library">Explorar biblioteca</Link>
-                </Button>
-              </CardFooter>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <QrCode className="h-12 w-12 text-primary mb-2" />
-                <CardTitle>QR Codes Inteligentes</CardTitle>
-                <CardDescription>
-                  Gere QR codes vinculados aos seus vídeos
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-secondary-foreground">
-                  Personalize os QR codes e visualize vídeos em AR ao escaneá-los com um dispositivo móvel.
-                </p>
-              </CardContent>
-              <CardFooter>
-                <Button variant="link" asChild>
-                  <Link to="/qrcodes">Gerar QR codes</Link>
-                </Button>
-              </CardFooter>
-            </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="bg-card border rounded-lg p-6 flex flex-col items-center text-center">
+              <div className="bg-primary/10 p-4 rounded-full mb-4">
+                <Upload className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="text-xl font-semibold mb-2">Upload de Vídeos</h2>
+              <p className="text-muted-foreground mb-4">
+                Adicione vídeos à sua biblioteca para transformá-los em experiências em RA.
+              </p>
+              <Button asChild className="w-full mt-auto">
+                <Link to="/upload">Fazer upload</Link>
+              </Button>
+            </div>
+            
+            <div className="bg-card border rounded-lg p-6 flex flex-col items-center text-center">
+              <div className="bg-primary/10 p-4 rounded-full mb-4">
+                <BookMarked className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="text-xl font-semibold mb-2">Biblioteca</h2>
+              <p className="text-muted-foreground mb-4">
+                Gerencie sua coleção de vídeos com {videos.length} itens disponíveis.
+              </p>
+              <Button asChild variant="outline" className="w-full mt-auto">
+                <Link to="/library">Ver biblioteca</Link>
+              </Button>
+            </div>
+            
+            <div className="bg-card border rounded-lg p-6 flex flex-col items-center text-center">
+              <div className="bg-primary/10 p-4 rounded-full mb-4">
+                <QrCode className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="text-xl font-semibold mb-2">QR Codes</h2>
+              <p className="text-muted-foreground mb-4">
+                Crie QR codes personalizados para acessar seus vídeos em realidade aumentada.
+              </p>
+              <Button asChild variant="outline" className="w-full mt-auto">
+                <Link to="/qrcodes">Gerenciar QR Codes</Link>
+              </Button>
+            </div>
           </div>
-        </Container>
-      </section>
-
-      {/* CTA Section */}
-      <section className="bg-secondary/10 py-16">
-        <Container className="text-center">
-          <h2 className="text-3xl font-bold mb-4">
-            Pronto para começar?
-          </h2>
-          <p className="text-xl text-secondary-foreground max-w-2xl mx-auto mb-8">
-            Comece a criar seus Epic Moments agora mesmo
-          </p>
-          <Button size="lg" asChild>
-            <Link to="/upload">Começar agora</Link>
-          </Button>
-        </Container>
-      </section>
-    </div>
+        )}
+      </div>
+    </Container>
   );
 };
 

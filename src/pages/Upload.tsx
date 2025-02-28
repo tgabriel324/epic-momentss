@@ -1,5 +1,6 @@
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import Container from "@/components/ui/container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -7,18 +8,20 @@ import { Button } from "@/components/ui/button";
 import { Upload as UploadIcon, FileVideo, X, CheckCircle2, AlertCircle } from "lucide-react";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Progress } from "@/components/ui/progress";
-import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useVideoStore } from "@/store/videoStore";
+import { useAuthStore } from "@/store/authStore";
+import { Navigate } from "react-router-dom";
 
 // Tipos para o gerenciamento de upload
 type UploadStatus = "idle" | "uploading" | "processing" | "success" | "error";
 
 const Upload = () => {
   const navigate = useNavigate();
-  const addVideo = useVideoStore((state) => state.addVideo);
+  const { addVideo } = useVideoStore();
+  const { session } = useAuthStore();
   
   // Estados para gerenciar o upload
   const [file, setFile] = useState<File | null>(null);
@@ -31,6 +34,11 @@ const Upload = () => {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("geral");
   const [tags, setTags] = useState("");
+
+  // Verificar autenticação
+  if (!session) {
+    return <Navigate to="/auth" />;
+  }
 
   // Função para verificar tipos de arquivo
   const isVideoFile = (file: File) => {
@@ -105,8 +113,8 @@ const Upload = () => {
     setUploadStatus("idle");
   };
 
-  // Simular o upload do arquivo
-  const handleUpload = () => {
+  // Upload do arquivo para o Supabase
+  const handleUpload = async () => {
     if (!file) return;
     
     if (!title.trim()) {
@@ -120,60 +128,68 @@ const Upload = () => {
 
     setUploadStatus("uploading");
     
-    // Simulação do progresso de upload
-    let progressValue = 0;
-    const interval = setInterval(() => {
-      progressValue += Math.random() * 10;
-      if (progressValue >= 100) {
-        progressValue = 100;
-        clearInterval(interval);
-        setProgress(100);
-        setUploadStatus("processing");
-        
-        // Simular processamento
-        setTimeout(() => {
-          handleUploadSuccess();
-        }, 1500);
-      } else {
-        setProgress(Math.min(progressValue, 99));
-      }
-    }, 300);
+    try {
+      // Adicionar o vídeo com o arquivo local
+      const videoData = {
+        id: Date.now().toString(),
+        title: title,
+        description: description,
+        url: URL.createObjectURL(file), // URL temporária
+        thumbnailUrl: "/placeholder.svg", // Placeholder
+        category: category,
+        tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag !== ""),
+        dateUploaded: new Date().toISOString(),
+        duration: 0, // Em um app real calcularia a duração
+        size: file.size,
+        views: 0,
+        localFile: file
+      };
+      
+      await addVideo(videoData);
+      
+      setUploadStatus("success");
+      
+      // Navegar para a biblioteca após 2 segundos
+      setTimeout(() => {
+        navigate("/library");
+      }, 2000);
+      
+    } catch (error) {
+      console.error("Erro no upload:", error);
+      setUploadStatus("error");
+      
+      toast({
+        title: "Erro no upload",
+        description: "Ocorreu um erro ao fazer o upload do vídeo. Tente novamente.",
+        variant: "destructive"
+      });
+    }
   };
 
-  // Lidar com o sucesso do upload
-  const handleUploadSuccess = () => {
-    setUploadStatus("success");
-    
-    // Adicionar o vídeo à biblioteca
-    const videoId = Date.now().toString();
-    const videoUrl = URL.createObjectURL(file!);
-    const thumbnailUrl = "/placeholder.svg"; // Placeholder, em um app real geraria thumbnails
-    
-    addVideo({
-      id: videoId,
-      title: title,
-      description: description,
-      url: videoUrl,
-      thumbnailUrl: thumbnailUrl,
-      category: category,
-      tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag !== ""),
-      dateUploaded: new Date().toISOString(),
-      duration: 0, // Em um app real calcularia a duração
-      size: file!.size,
-      views: 0,
-      localFile: file
-    });
-    
-    toast({
-      title: "Upload concluído!",
-      description: "Seu vídeo foi adicionado à biblioteca."
-    });
-    
-    // Navegar para a biblioteca após 2 segundos
-    setTimeout(() => {
-      navigate("/library");
-    }, 2000);
-  };
+  // Simular o progresso de upload
+  useEffect(() => {
+    if (uploadStatus === "uploading") {
+      let progressValue = 0;
+      const interval = setInterval(() => {
+        progressValue += Math.random() * 10;
+        if (progressValue >= 100) {
+          progressValue = 100;
+          clearInterval(interval);
+          setProgress(100);
+          setUploadStatus("processing");
+          
+          // Simular processamento
+          setTimeout(() => {
+            // O callback addVideo já cuida da mudança de status
+          }, 1500);
+        } else {
+          setProgress(Math.min(progressValue, 99));
+        }
+      }, 300);
+      
+      return () => clearInterval(interval);
+    }
+  }, [uploadStatus]);
 
   return (
     <Container>
