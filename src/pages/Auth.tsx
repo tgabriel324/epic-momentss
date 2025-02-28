@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
-import { Lock, Mail, User, RefreshCcw } from "lucide-react";
+import { Lock, Mail, User, RefreshCcw, QrCode } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -149,11 +149,7 @@ const Auth = () => {
         <CardHeader className="space-y-1">
           <div className="flex justify-center">
             <div className="flex items-center">
-              <img 
-                src="/lovable-uploads/eca1daa0-d180-497b-a269-82b5bfb9fe20.png" 
-                alt="Epic Moments Logo" 
-                className="h-12"
-              />
+              <QrCode className="h-8 w-8 text-primary" />
               <span className="text-2xl font-bold text-primary ml-2">Epic Moments</span>
             </div>
           </div>
