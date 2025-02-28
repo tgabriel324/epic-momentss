@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useVideoStore } from "@/store/videoStore";
 import { useQRCodeStore } from "@/store/qrCodeStore";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Camera, PauseCircle, PlayCircle, RefreshCw } from "lucide-react";
+import { ArrowLeft, Camera, Download, PauseCircle, PlayCircle, RefreshCw } from "lucide-react";
 import VideoPlayer from "@/components/video/VideoPlayer";
 
 // Definição do tipo CameraDevice que corresponde ao retorno da biblioteca
@@ -33,17 +33,19 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
   const [isLoading, setIsLoading] = useState(true);
   const [hasPermission, setHasPermission] = useState(true);
   const [scanDebugInfo, setScanDebugInfo] = useState<string | null>(null);
+  const [detailedDebugMode, setDetailedDebugMode] = useState(false);
   
-  const { videos, getVideoById } = useVideoStore();
+  const { videos, getVideoById, fetchVideos } = useVideoStore();
   const { qrCodes, incrementScans, recordScanDetails, fetchQRCodes } = useQRCodeStore();
   
-  // Carrega os QR codes novamente ao inicializar o componente, se forceInitialLoad for true
+  // Carrega os QR codes e vídeos novamente ao inicializar o componente
   useEffect(() => {
     if (forceInitialLoad) {
-      console.log("Forçando carregamento inicial de QR codes");
+      console.log("Forçando carregamento inicial de QR codes e vídeos");
       fetchQRCodes();
+      fetchVideos();
     }
-  }, [forceInitialLoad, fetchQRCodes]);
+  }, [forceInitialLoad, fetchQRCodes, fetchVideos]);
 
   // Inicializar o scanner
   useEffect(() => {
@@ -165,6 +167,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
     try {
       // Log dos QR codes disponíveis
       console.log("QR codes disponíveis para correspondência:", qrCodes);
+      console.log("Vídeos disponíveis:", videos);
       
       // Verificar se temos QR codes para comparar
       if (!qrCodes || qrCodes.length === 0) {
@@ -184,10 +187,12 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
       
       // Gerar informações de diagnóstico
       const qrCodesInfo = qrCodes.map(qr => `ID: ${qr.id}, VideoID: ${qr.videoId}, Title: ${qr.videoTitle}`).join('\n');
+      const videosInfo = videos.map(v => `ID: ${v.id}, Title: ${v.title}, URL: ${v.url}`).join('\n');
       
       setScanDebugInfo(
         `QR code lido: ${decodedText}\n\n` +
-        `QR codes disponíveis (${qrCodes.length}):\n${qrCodesInfo}`
+        `QR codes disponíveis (${qrCodes.length}):\n${qrCodesInfo}\n\n` +
+        `Vídeos disponíveis (${videos.length}):\n${videosInfo}`
       );
       
       // Tentativa direta com o texto do QR code
@@ -283,11 +288,46 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
         console.log("QR code encontrado:", qrCode);
         setScanDebugInfo(prev => `${prev}\n\nQR code encontrado: ID=${qrCode?.id}, VideoID=${qrCode?.videoId}`);
         
+        // Verificar se o videoId existe
+        if (!qrCode.videoId) {
+          console.error("QR code não tem videoId associado");
+          setScanDebugInfo(prev => `${prev}\nERRO: QR code não tem videoId associado.`);
+          
+          toast({
+            title: "QR Code incompleto",
+            description: "Este QR code não tem um vídeo associado.",
+            variant: "destructive"
+          });
+          
+          startScanning();
+          return;
+        }
+        
+        // Verificar diretamente se existe algum vídeo com esse ID
+        const videoExists = videos.some(v => v.id === qrCode?.videoId);
+        console.log(`Verificação direta do videoId ${qrCode.videoId}: ${videoExists ? 'Encontrado' : 'Não encontrado'}`);
+        setScanDebugInfo(prev => `${prev}\nVerificação direta do videoId: ${videoExists ? 'Encontrado' : 'Não encontrado'}`);
+        
         const video = getVideoById(qrCode.videoId);
         
         if (video) {
           console.log("Vídeo encontrado:", video);
           setScanDebugInfo(prev => `${prev}\nVídeo encontrado: ${video.title}`);
+          
+          // Verificar se a URL do vídeo é válida
+          if (!video.url) {
+            console.error("Vídeo encontrado, mas sem URL");
+            setScanDebugInfo(prev => `${prev}\nERRO: O vídeo não possui URL.`);
+            
+            toast({
+              title: "Vídeo sem URL",
+              description: "O vídeo associado a este QR code não possui URL para reprodução.",
+              variant: "destructive"
+            });
+            
+            startScanning();
+            return;
+          }
           
           setScannedVideo({
             url: video.url,
@@ -320,7 +360,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
           
           toast({
             title: "Vídeo não encontrado",
-            description: "O vídeo associado a este QR code não foi encontrado.",
+            description: "O vídeo associado a este QR code não foi encontrado. O videoId pode estar incorreto ou o vídeo pode ter sido removido.",
             variant: "destructive"
           });
         }
@@ -387,31 +427,31 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
     }
   };
   
-  // Função para teste direto de correspondência de ID
-  const testMatchQRCode = (testId: string) => {
-    console.log(`Testando correspondência manual com ID: ${testId}`);
+  // Exportar informações de diagnóstico
+  const exportDebugInfo = () => {
+    if (!scanDebugInfo) return;
     
-    if (!qrCodes || qrCodes.length === 0) {
-      setScanDebugInfo("Nenhum QR code disponível para teste");
-      return;
-    }
+    const debugData = {
+      timestamp: new Date().toISOString(),
+      qrCodes: qrCodes,
+      videos: videos,
+      scanInfo: scanDebugInfo
+    };
     
-    const matchedQR = qrCodes.find(qr => qr.id === testId);
-    if (matchedQR) {
-      setScanDebugInfo(`QR code encontrado por ID exato!\nID: ${matchedQR.id}\nVídeo: ${matchedQR.videoTitle}`);
-    } else {
-      // Tentar correspondência parcial
-      const partialMatch = qrCodes.find(qr => 
-        qr.id.includes(testId) || 
-        testId.includes(qr.id)
-      );
-      
-      if (partialMatch) {
-        setScanDebugInfo(`QR code encontrado por correspondência parcial!\nID: ${partialMatch.id}\nVídeo: ${partialMatch.videoTitle}`);
-      } else {
-        setScanDebugInfo(`Nenhuma correspondência encontrada para ID: ${testId}`);
-      }
-    }
+    const dataStr = JSON.stringify(debugData, null, 2);
+    const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
+    
+    const exportFileDefaultName = `qr-scanner-debug-${Date.now()}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+    
+    toast({
+      title: "Informações exportadas",
+      description: "As informações de diagnóstico foram exportadas com sucesso."
+    });
   };
   
   if (isLoading) {
@@ -581,7 +621,18 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
       {/* Área de debug - será útil para solucionar problemas de reconhecimento */}
       {scanDebugInfo && (
         <div className="mt-4 p-3 bg-muted rounded-md text-sm">
-          <p className="font-medium mb-1">Informações de diagnóstico:</p>
+          <div className="flex justify-between items-center mb-1">
+            <p className="font-medium">Informações de diagnóstico:</p>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={exportDebugInfo}
+              disabled={!scanDebugInfo}
+            >
+              <Download className="h-4 w-4 mr-1" />
+              Exportar
+            </Button>
+          </div>
           <pre className="whitespace-pre-wrap text-xs">{scanDebugInfo}</pre>
         </div>
       )}
@@ -596,26 +647,68 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
             onClick={() => {
               // Mostrar os QR codes cadastrados
               const testInfo = qrCodes.map(qr => `ID: ${qr.id}, VideoID: ${qr.videoId}, Title: ${qr.videoTitle}`).join('\n');
-              setScanDebugInfo(`QR codes cadastrados (${qrCodes.length}):\n${testInfo}`);
+              const videosInfo = videos.map(v => `ID: ${v.id}, Title: ${v.title}, URL: ${v.url}`).join('\n');
+              
+              setScanDebugInfo(
+                `QR codes cadastrados (${qrCodes.length}):\n${testInfo}\n\n` +
+                `Vídeos disponíveis (${videos.length}):\n${videosInfo}`
+              );
             }}
           >
-            Verificar QR Codes Cadastrados
+            Verificar QR Codes e Vídeos
           </Button>
           
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => {
-              // Recarregar os QR codes do banco de dados
-              fetchQRCodes();
+            onClick={async () => {
+              // Recarregar os QR codes e vídeos do banco de dados
+              await fetchQRCodes();
+              await fetchVideos();
+              
               toast({
-                title: "QR Codes recarregados",
-                description: `Foram carregados ${qrCodes.length} QR codes do banco de dados.`
+                title: "Dados recarregados",
+                description: `Foram carregados ${qrCodes.length} QR codes e ${videos.length} vídeos do banco de dados.`
               });
             }}
           >
-            Recarregar QR Codes
+            Recarregar Todos os Dados
           </Button>
+          
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="col-span-2"
+            onClick={() => setDetailedDebugMode(!detailedDebugMode)}
+          >
+            {detailedDebugMode ? "Ocultar IDs completos" : "Mostrar IDs completos"}
+          </Button>
+          
+          {detailedDebugMode && (
+            <div className="col-span-2 text-xs p-2 bg-muted rounded-md mt-2">
+              <p className="font-medium mb-1">IDs Completos:</p>
+              <div>
+                <p className="font-medium">QR Codes:</p>
+                <ul className="list-disc pl-5">
+                  {qrCodes.map(qr => (
+                    <li key={qr.id}>
+                      ID: {qr.id} | VideoID: {qr.videoId}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="mt-2">
+                <p className="font-medium">Vídeos:</p>
+                <ul className="list-disc pl-5">
+                  {videos.map(v => (
+                    <li key={v.id}>
+                      ID: {v.id} | URL: {v.url}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
