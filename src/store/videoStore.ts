@@ -35,6 +35,9 @@ interface VideoStore {
   fetchVideos: () => Promise<void>;
 }
 
+// URL base do Supabase (usar a URL pública em vez da propriedade protegida)
+const SUPABASE_URL = "https://cncqxbhjhfotbrvhtplq.supabase.co";
+
 // Criação da store com persistência local
 export const useVideoStore = create<VideoStore>()(
   persist(
@@ -75,7 +78,7 @@ export const useVideoStore = create<VideoStore>()(
             duration: video.duration || 0,
             size: video.size || 0,
             views: video.views || 0,
-            storagePath: video.url ? video.url.replace(`${supabase.supabaseUrl}/storage/v1/object/public/videos/`, '') : undefined
+            storagePath: video.url ? video.url.replace(`${SUPABASE_URL}/storage/v1/object/public/videos/`, '') : undefined
           }));
           
           set({ videos: formattedVideos, loading: false });
@@ -92,7 +95,8 @@ export const useVideoStore = create<VideoStore>()(
         
         // Se houver um arquivo local, fazer upload para o Storage
         if (video.localFile) {
-          const fileExt = video.localFile.name.split('.').pop();
+          const fileName = video.localFile.name;
+          const fileExt = fileName.split('.').pop();
           const filePath = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
           
           const { data: uploadData, error: uploadError } = await supabase.storage
@@ -110,12 +114,16 @@ export const useVideoStore = create<VideoStore>()(
           }
           
           storagePath = filePath;
-          videoUrl = `${supabase.supabaseUrl}/storage/v1/object/public/videos/${filePath}`;
+          videoUrl = `${SUPABASE_URL}/storage/v1/object/public/videos/${filePath}`;
         }
         
         // Converter tags de string para array se necessário
-        const tags = Array.isArray(video.tags) ? video.tags : 
-          typeof video.tags === 'string' ? video.tags.split(',').map(tag => tag.trim()) : [];
+        let processedTags: string[] = [];
+        if (Array.isArray(video.tags)) {
+          processedTags = video.tags;
+        } else if (typeof video.tags === 'string') {
+          processedTags = video.tags.split(',').map(tag => tag.trim());
+        }
         
         // Obter o ID do usuário autenticado
         const { data: { user } } = await supabase.auth.getUser();
@@ -138,7 +146,7 @@ export const useVideoStore = create<VideoStore>()(
             url: videoUrl,
             thumbnail_url: video.thumbnailUrl,
             category: video.category,
-            tags: tags,
+            tags: processedTags,
             size: video.size,
             duration: video.duration,
             user_id: user.id
@@ -185,10 +193,14 @@ export const useVideoStore = create<VideoStore>()(
       // Atualizar vídeo existente
       updateVideo: async (id, updates) => {
         // Converter tags de string para array se necessário
-        let tags;
+        let updatedTags: string[] | undefined = undefined;
+        
         if (updates.tags) {
-          tags = Array.isArray(updates.tags) ? updates.tags : 
-            typeof updates.tags === 'string' ? updates.tags.split(',').map(tag => tag.trim()) : undefined;
+          if (Array.isArray(updates.tags)) {
+            updatedTags = updates.tags;
+          } else if (typeof updates.tags === 'string') {
+            updatedTags = updates.tags.split(',').map(tag => tag.trim());
+          }
         }
         
         // Atualizar no banco de dados
@@ -198,7 +210,7 @@ export const useVideoStore = create<VideoStore>()(
             title: updates.title,
             description: updates.description,
             category: updates.category,
-            tags: tags
+            tags: updatedTags
           })
           .eq('id', id);
         
@@ -271,7 +283,9 @@ export const useVideoStore = create<VideoStore>()(
       incrementViews: async (id) => {
         try {
           // Vamos usar o RPC function criada no Supabase
-          const { error } = await supabase.rpc('increment_views', { video_id: id });
+          const { error } = await supabase.rpc('increment_views', { 
+            video_id: id as any 
+          });
           
           if (error) {
             console.error('Erro ao incrementar visualizações:', error);
