@@ -1,6 +1,6 @@
 
-import React, { useState } from "react";
-import { Navigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Navigate, useSearchParams } from "react-router-dom";
 import Container from "@/components/ui/container";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,15 +10,85 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
 import { Lock, Mail, User, RefreshCcw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const Auth = () => {
   const { login, signup, session, loading, resendConfirmationEmail } = useAuthStore();
+  const [searchParams] = useSearchParams();
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nome, setNome] = useState("");
   const [activeTab, setActiveTab] = useState("login");
   const [resendLoading, setResendLoading] = useState(false);
+  const [confirmationState, setConfirmationState] = useState({
+    loading: false,
+    success: false,
+    error: null as string | null,
+  });
+  
+  // Verificar tokens na URL (para quando o usuário é redirecionado após confirmar o email)
+  useEffect(() => {
+    const handleConfirmationTokens = async () => {
+      const accessToken = searchParams.get('access_token');
+      const refreshToken = searchParams.get('refresh_token');
+      const type = searchParams.get('type');
+      
+      if (accessToken && refreshToken && type === 'recovery') {
+        // Lógica para confirmação de recuperação de senha
+        setConfirmationState({ loading: true, success: false, error: null });
+        
+        try {
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          
+          if (error) throw error;
+          
+          setConfirmationState({ loading: false, success: true, error: null });
+          toast({
+            title: "Recuperação bem-sucedida",
+            description: "Sua conta foi restaurada com sucesso!"
+          });
+        } catch (error: any) {
+          setConfirmationState({ loading: false, success: false, error: error.message });
+          toast({
+            title: "Erro na recuperação",
+            description: error.message,
+            variant: "destructive"
+          });
+        }
+      } else if (accessToken && refreshToken && type === 'signup') {
+        // Lógica para confirmação de email após cadastro
+        setConfirmationState({ loading: true, success: false, error: null });
+        
+        try {
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          
+          if (error) throw error;
+          
+          setConfirmationState({ loading: false, success: true, error: null });
+          toast({
+            title: "E-mail confirmado",
+            description: "Sua conta foi verificada com sucesso!"
+          });
+        } catch (error: any) {
+          setConfirmationState({ loading: false, success: false, error: error.message });
+          toast({
+            title: "Erro na confirmação",
+            description: error.message,
+            variant: "destructive"
+          });
+        }
+      }
+    };
+    
+    handleConfirmationTokens();
+  }, [searchParams]);
   
   // Se já estiver logado, redirecionar para a página inicial
   if (session) {
@@ -54,6 +124,25 @@ const Auth = () => {
     setResendLoading(false);
   };
   
+  // Exibir estado de carregamento durante a confirmação
+  if (confirmationState.loading) {
+    return (
+      <Container className="max-w-md py-10">
+        <Card>
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl text-center">Processando...</CardTitle>
+            <CardDescription className="text-center">
+              Estamos verificando suas credenciais
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center py-8">
+            <div className="w-8 h-8 border-4 border-gray-300 border-t-primary rounded-full animate-spin"></div>
+          </CardContent>
+        </Card>
+      </Container>
+    );
+  }
+  
   return (
     <Container className="max-w-md py-10">
       <Card>
@@ -64,6 +153,20 @@ const Auth = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {confirmationState.success && (
+            <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-4 text-green-800">
+              <p className="font-medium">Autenticação bem-sucedida!</p>
+              <p className="text-sm">Agora você pode fazer login com suas credenciais.</p>
+            </div>
+          )}
+          
+          {confirmationState.error && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-4 text-red-800">
+              <p className="font-medium">Ocorreu um erro</p>
+              <p className="text-sm">{confirmationState.error}</p>
+            </div>
+          )}
+          
           <Tabs 
             defaultValue="login" 
             value={activeTab} 

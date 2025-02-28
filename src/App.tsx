@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect } from "react";
 
 import Navbar from "./components/layout/Navbar";
@@ -19,8 +19,60 @@ import ARSimulate from "./pages/ARSimulate";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { initializeAuth } from "./store/authStore";
+import { supabase } from "./integrations/supabase/client";
 
 const queryClient = new QueryClient();
+
+// Componente para lidar com redirecionamentos de autenticação
+const AuthRedirect = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  useEffect(() => {
+    // Verificar se há um token de confirmação
+    const accessToken = searchParams.get('access_token');
+    const refreshToken = searchParams.get('refresh_token');
+    const type = searchParams.get('type');
+    
+    const handleSession = async () => {
+      if (accessToken && refreshToken && type) {
+        try {
+          // Tentar atualizar a sessão com os tokens recebidos
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          
+          if (error) {
+            console.error('Erro ao configurar sessão:', error);
+            navigate('/auth');
+            return;
+          }
+          
+          if (data?.user) {
+            navigate('/');  // Redirecionar para a página inicial
+          } else {
+            navigate('/auth');
+          }
+        } catch (err) {
+          console.error('Erro:', err);
+          navigate('/auth');
+        }
+      } else {
+        navigate('/auth');
+      }
+    };
+    
+    handleSession();
+  }, [navigate, searchParams]);
+  
+  return <div className="flex items-center justify-center min-h-screen">
+    <div className="text-center">
+      <h2 className="text-xl font-semibold mb-2">Processando autenticação...</h2>
+      <p>Você será redirecionado em instantes.</p>
+    </div>
+  </div>;
+};
 
 const App = () => {
   // Inicializar autenticação ao carregar o app
@@ -39,6 +91,7 @@ const App = () => {
               <Route path="/ar/:id" element={<AR />} />
               <Route path="/qrcodes/simulate/:id" element={<ARSimulate />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/auth/callback" element={<AuthRedirect />} />
               <Route
                 path="*"
                 element={

@@ -47,12 +47,6 @@ export const useAuthStore = create<AuthState>()(
                 description: "Por favor, verifique seu e-mail para confirmar sua conta ou solicite um novo link de confirmação.",
                 variant: "destructive"
               });
-              
-              // Podemos oferecer para reenviar o e-mail de confirmação
-              const shouldResend = confirm("Deseja receber um novo e-mail de confirmação?");
-              if (shouldResend) {
-                await get().resendConfirmationEmail(email);
-              }
             } else {
               throw error;
             }
@@ -85,6 +79,9 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true });
         
         try {
+          // Configurar redirecionamento para URL atual em vez de localhost
+          const currentUrl = window.location.origin;
+          
           const { data, error } = await supabase.auth.signUp({
             email,
             password,
@@ -92,8 +89,7 @@ export const useAuthStore = create<AuthState>()(
               data: {
                 nome
               },
-              // Desativar a necessidade de confirmação por e-mail
-              emailRedirectTo: window.location.origin
+              emailRedirectTo: `${currentUrl}/auth`
             }
           });
           
@@ -216,14 +212,17 @@ export const useAuthStore = create<AuthState>()(
         }
       },
       
-      // Novo método para reenviar e-mail de confirmação
+      // Método para reenviar e-mail de confirmação
       resendConfirmationEmail: async (email) => {
         try {
+          // Certificar-se de que a URL de redirecionamento é a atual, não localhost
+          const currentUrl = window.location.origin;
+          
           const { error } = await supabase.auth.resend({
             type: 'signup',
             email: email,
             options: {
-              emailRedirectTo: window.location.origin
+              emailRedirectTo: `${currentUrl}/auth`
             }
           });
           
@@ -233,7 +232,7 @@ export const useAuthStore = create<AuthState>()(
           
           toast({
             title: "E-mail enviado",
-            description: "Um novo link de confirmação foi enviado para o seu e-mail."
+            description: "Um novo link de confirmação foi enviado para o seu e-mail. Verifique também a pasta de spam."
           });
           
         } catch (error: any) {
