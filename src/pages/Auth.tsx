@@ -8,15 +8,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
-import { Lock, Mail, User } from "lucide-react";
+import { Lock, Mail, User, RefreshCcw } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
 const Auth = () => {
-  const { login, signup, session, loading } = useAuthStore();
+  const { login, signup, session, loading, resendConfirmationEmail } = useAuthStore();
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nome, setNome] = useState("");
   const [activeTab, setActiveTab] = useState("login");
+  const [resendLoading, setResendLoading] = useState(false);
   
   // Se já estiver logado, redirecionar para a página inicial
   if (session) {
@@ -35,6 +37,21 @@ const Auth = () => {
     if (!email || !password) return;
     
     await signup(email, password, nome);
+  };
+  
+  const handleResendEmail = async () => {
+    if (!email) {
+      toast({
+        title: "Campo obrigatório",
+        description: "Por favor, informe seu e-mail para receber o link de confirmação.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setResendLoading(true);
+    await resendConfirmationEmail(email);
+    setResendLoading(false);
   };
   
   return (
@@ -93,6 +110,19 @@ const Auth = () => {
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Entrando..." : "Entrar"}
                 </Button>
+                <div className="text-center">
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm" 
+                    className="mt-2 text-xs"
+                    onClick={handleResendEmail}
+                    disabled={resendLoading}
+                  >
+                    <RefreshCcw className="mr-1 h-3 w-3" />
+                    {resendLoading ? "Enviando..." : "Reenviar e-mail de confirmação"}
+                  </Button>
+                </div>
               </form>
             </TabsContent>
             
@@ -151,6 +181,10 @@ const Auth = () => {
         <CardFooter className="flex flex-col">
           <p className="text-xs text-center text-muted-foreground mt-2">
             Ao continuar, você concorda com nossos termos de serviço e política de privacidade.
+          </p>
+          <p className="text-xs text-center text-muted-foreground mt-2">
+            <strong>Nota para testes:</strong> Se você estiver usando uma conta recém-criada e encontrar o erro "E-mail não confirmado", 
+            você pode usar o botão "Reenviar e-mail de confirmação" acima ou entre em contato com o administrador para ativar sua conta.
           </p>
         </CardFooter>
       </Card>

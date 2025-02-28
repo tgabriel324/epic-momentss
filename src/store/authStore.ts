@@ -20,6 +20,7 @@ interface AuthState {
   logout: () => Promise<void>;
   getProfile: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  resendConfirmationEmail: (email: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -39,7 +40,25 @@ export const useAuthStore = create<AuthState>()(
           });
           
           if (error) {
-            throw error;
+            // Verificar se o erro é devido a email não confirmado
+            if (error.message.includes('Email not confirmed') || error.message.includes('email not confirmed')) {
+              toast({
+                title: "E-mail não confirmado",
+                description: "Por favor, verifique seu e-mail para confirmar sua conta ou solicite um novo link de confirmação.",
+                variant: "destructive"
+              });
+              
+              // Podemos oferecer para reenviar o e-mail de confirmação
+              const shouldResend = confirm("Deseja receber um novo e-mail de confirmação?");
+              if (shouldResend) {
+                await get().resendConfirmationEmail(email);
+              }
+            } else {
+              throw error;
+            }
+            
+            set({ loading: false });
+            return;
           }
           
           set({ session: data.session, loading: false });
@@ -72,7 +91,9 @@ export const useAuthStore = create<AuthState>()(
             options: {
               data: {
                 nome
-              }
+              },
+              // Desativar a necessidade de confirmação por e-mail
+              emailRedirectTo: window.location.origin
             }
           });
           
@@ -80,15 +101,26 @@ export const useAuthStore = create<AuthState>()(
             throw error;
           }
           
-          set({ session: data.session, loading: false });
-          toast({
-            title: "Conta criada com sucesso",
-            description: "Bem-vindo ao Epic Moments!"
-          });
+          set({ loading: false });
           
-          // Buscar perfil do usuário após cadastro
-          if (data.session) {
-            get().getProfile();
+          if (data.user && !data.session) {
+            // Se temos um usuário mas não uma sessão, é porque o e-mail precisa ser confirmado
+            toast({
+              title: "Conta criada com sucesso",
+              description: "Um e-mail de confirmação foi enviado para o seu endereço. Por favor, verifique sua caixa de entrada para continuar.",
+            });
+          } else {
+            // Caso a verificação de e-mail esteja desativada e o usuário já esteja logado
+            set({ session: data.session });
+            toast({
+              title: "Conta criada com sucesso",
+              description: "Bem-vindo ao Epic Moments!"
+            });
+            
+            // Buscar perfil do usuário após cadastro
+            if (data.session) {
+              get().getProfile();
+            }
           }
           
         } catch (error: any) {
@@ -178,6 +210,36 @@ export const useAuthStore = create<AuthState>()(
           console.error('Erro ao atualizar perfil:', error);
           toast({
             title: "Erro ao atualizar perfil",
+            description: error.message,
+            variant: "destructive"
+          });
+        }
+      },
+      
+      // Novo método para reenviar e-mail de confirmação
+      resendConfirmationEmail: async (email) => {
+        try {
+          const { error } = await supabase.auth.resend({
+            type: 'signup',
+            email: email,
+            options: {
+              emailRedirectTo: window.location.origin
+            }
+          });
+          
+          if (error) {
+            throw error;
+          }
+          
+          toast({
+            title: "E-mail enviado",
+            description: "Um novo link de confirmação foi enviado para o seu e-mail."
+          });
+          
+        } catch (error: any) {
+          console.error('Erro ao reenviar e-mail:', error);
+          toast({
+            title: "Erro ao reenviar e-mail",
             description: error.message,
             variant: "destructive"
           });
