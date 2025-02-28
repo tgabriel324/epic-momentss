@@ -151,111 +151,124 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
     stopScanning();
     
     console.log("QR Code escaneado:", decodedText);
-    setScanDebugInfo(`QR code lido: ${decodedText}`);
     
     // Verificar se o QR code corresponde a algum dos nossos QR codes
     try {
-      // Mostrar a lista de QR codes para depuração
-      console.log("QR codes disponíveis:", qrCodes.map(qr => ({ id: qr.id, videoId: qr.videoId })));
+      // Mostrar todos os QR codes disponíveis no console
+      console.log("QR codes disponíveis:", qrCodes);
       
-      // Tentar extrair o ID do QR code da URL escaneada
-      let qrCodeId;
+      // Gerar informações de diagnóstico
+      const qrCodesInfo = qrCodes.map(qr => `ID: ${qr.id}, VideoID: ${qr.videoId}, Title: ${qr.videoTitle}`).join('\n');
       
-      // Verificar diferentes padrões de URL possíveis
-      if (decodedText.includes('/ar/')) {
-        // Formato: .../ar/qr-123456789
+      setScanDebugInfo(
+        `QR code lido: ${decodedText}\n\n` +
+        `QR codes disponíveis (${qrCodes.length}):\n${qrCodesInfo}`
+      );
+      
+      // Abordagem 1: Correspondência Direta
+      // Verificar se o código escaneado é exatamente o ID de um QR code
+      let qrCode = qrCodes.find(qr => qr.id === decodedText);
+      
+      // Abordagem 2: QR code contém o ID
+      if (!qrCode) {
+        qrCode = qrCodes.find(qr => decodedText.includes(qr.id));
+      }
+      
+      // Abordagem 3: ID contém o QR code
+      if (!qrCode) {
+        qrCode = qrCodes.find(qr => qr.id.includes(decodedText));
+      }
+
+      // Abordagem 4: Usar o ID do vídeo
+      if (!qrCode) {
+        qrCode = qrCodes.find(qr => qr.videoId === decodedText || decodedText.includes(qr.videoId));
+      }
+      
+      // Abordagem 5: Remover 'qr-' se presente e tentar novamente
+      if (!qrCode && decodedText.startsWith('qr-')) {
+        const cleanId = decodedText.replace('qr-', '');
+        qrCode = qrCodes.find(qr => 
+          qr.id === cleanId || 
+          qr.id.includes(cleanId) || 
+          cleanId.includes(qr.id)
+        );
+      }
+      
+      // Nova abordagem: suporte a caminhos URL completos
+      if (!qrCode && decodedText.includes('/ar/')) {
         const parts = decodedText.split('/ar/');
-        qrCodeId = parts[parts.length - 1];
-        console.log("ID extraído de URL AR:", qrCodeId);
-      } else if (decodedText.startsWith('qr-')) {
-        // Formato: qr-123456789
-        qrCodeId = decodedText;
-        console.log("ID extraído de formato simples:", qrCodeId);
-      } else if (decodedText.includes('qr-')) {
-        // Formato: qualquer-coisa-qr-123456789
-        const match = decodedText.match(/qr-[a-zA-Z0-9-_]+/);
-        qrCodeId = match ? match[0] : null;
-        console.log("ID extraído de formato complexo:", qrCodeId);
-      } else {
-        // Verificar se é um UUID diretamente
-        const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-        if (uuidRegex.test(decodedText)) {
-          qrCodeId = decodedText;
-          console.log("ID extraído como UUID:", qrCodeId);
-        } else {
-          // Última tentativa: verificar se o texto decodificado está em qualquer parte do ID
-          const matchingQr = qrCodes.find(qr => qr.id.includes(decodedText) || decodedText.includes(qr.id));
-          if (matchingQr) {
-            qrCodeId = matchingQr.id;
-            console.log("ID encontrado por correspondência parcial:", qrCodeId);
-          } else {
-            qrCodeId = null;
-            console.log("Nenhum ID extraído do QR code");
-          }
-        }
+        const potentialId = parts[parts.length - 1];
+        
+        qrCode = qrCodes.find(qr => 
+          qr.id === potentialId || 
+          potentialId.includes(qr.id) || 
+          qr.id.includes(potentialId)
+        );
       }
       
-      // Se encontramos um ID, verificar se ele existe na nossa lista
-      if (qrCodeId) {
-        setScanDebugInfo(`QR code lido: ${decodedText}\nID extraído: ${qrCodeId}`);
+      // Se encontramos um QR code correspondente
+      if (qrCode) {
+        console.log("QR code encontrado:", qrCode);
+        setScanDebugInfo(prev => `${prev}\n\nQR code encontrado: ID=${qrCode?.id}, VideoID=${qrCode?.videoId}`);
         
-        // Tentar correspondência exata primeiro
-        let qrCode = qrCodes.find(qr => qr.id === qrCodeId);
+        const video = getVideoById(qrCode.videoId);
         
-        // Se não encontrar, tentar correspondência parcial
-        if (!qrCode) {
-          qrCode = qrCodes.find(qr => qr.id.includes(qrCodeId) || qrCodeId.includes(qr.id));
-        }
-        
-        if (qrCode) {
-          console.log("QR code encontrado:", qrCode);
-          const video = getVideoById(qrCode.videoId);
+        if (video) {
+          console.log("Vídeo encontrado:", video);
+          setScanDebugInfo(prev => `${prev}\nVídeo encontrado: ${video.title}`);
           
-          if (video) {
-            console.log("Vídeo encontrado:", video);
-            setScannedVideo({
-              url: video.url,
-              title: video.title
-            });
-            
-            // Incrementar contagem de escaneamentos
-            incrementScans(qrCode.id);
-            
-            // Registrar detalhes do escaneamento
-            if (qrCode.analyticsEnabled) {
-              recordScanDetails(qrCode.id, {});
-            }
-            
-            toast({
-              title: "QR Code reconhecido!",
-              description: `Exibindo vídeo: ${video.title}`
-            });
-            
-            // Iniciar reprodução automática do vídeo
-            setVideoPlaying(true);
-            return;
-          } else {
-            console.error("Vídeo não encontrado para o QR code:", qrCode.videoId);
-            setScanDebugInfo(`QR code encontrado, mas o vídeo (ID: ${qrCode.videoId}) não foi encontrado.`);
+          setScannedVideo({
+            url: video.url,
+            title: video.title
+          });
+          
+          // Incrementar contagem de escaneamentos
+          incrementScans(qrCode.id);
+          
+          // Registrar detalhes do escaneamento
+          if (qrCode.analyticsEnabled) {
+            recordScanDetails(qrCode.id, {});
           }
+          
+          toast({
+            title: "QR Code reconhecido!",
+            description: `Exibindo vídeo: ${video.title}`
+          });
+          
+          // Iniciar reprodução automática do vídeo
+          setVideoPlaying(true);
+          return;
         } else {
-          console.log("QR code não encontrado com ID:", qrCodeId);
-          setScanDebugInfo(`QR code lido: ${decodedText}\nID extraído: ${qrCodeId}\nNenhum QR code correspondente encontrado.`);
+          console.error("Vídeo não encontrado para o QR code:", qrCode.videoId);
+          setScanDebugInfo(prev => `${prev}\nERRO: Vídeo não encontrado para o QR code: VideoID=${qrCode.videoId}`);
+          
+          // Verificar se existem vídeos no sistema
+          console.log("Vídeos disponíveis:", videos);
+          setScanDebugInfo(prev => `${prev}\nVídeos disponíveis: ${videos.length}`);
+          
+          toast({
+            title: "Vídeo não encontrado",
+            description: "O vídeo associado a este QR code não foi encontrado.",
+            variant: "destructive"
+          });
         }
+      } else {
+        console.log("QR code não encontrado:", decodedText);
+        setScanDebugInfo(prev => `${prev}\n\nNenhum QR code correspondente encontrado`);
+        
+        toast({
+          title: "QR Code não reconhecido",
+          description: "Este QR code não corresponde a nenhum dos vídeos cadastrados.",
+          variant: "destructive"
+        });
       }
-      
-      // Se chegou aqui, o QR code não foi reconhecido como um dos nossos
-      toast({
-        title: "QR Code não reconhecido",
-        description: "Este QR code não corresponde a nenhum dos vídeos cadastrados.",
-        variant: "destructive"
-      });
       
       // Reiniciar o scanner
       startScanning();
     } catch (error) {
       console.error("Erro ao processar QR code:", error);
       setScanDebugInfo(`Erro ao processar QR code: ${error.message || 'Erro desconhecido'}`);
+      
       toast({
         title: "Erro ao processar QR Code",
         description: "Ocorreu um erro ao tentar processar o QR code escaneado.",
@@ -473,6 +486,21 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose }) => {
           <pre className="whitespace-pre-wrap text-xs">{scanDebugInfo}</pre>
         </div>
       )}
+
+      {/* Botão de teste manual para desenvolvimento */}
+      <div className="mt-4">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => {
+            // Mostrar os QR codes cadastrados
+            const testInfo = qrCodes.map(qr => `ID: ${qr.id}, VideoID: ${qr.videoId}, Title: ${qr.videoTitle}`).join('\n');
+            setScanDebugInfo(`QR codes cadastrados (${qrCodes.length}):\n${testInfo}`);
+          }}
+        >
+          Verificar QR Codes Cadastrados
+        </Button>
+      </div>
     </div>
   );
 };
