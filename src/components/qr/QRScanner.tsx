@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState } from "react";
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { useVideoStore } from "@/store/videoStore";
 import { useQRCodeStore } from "@/store/qrCodeStore";
@@ -21,7 +21,6 @@ interface QRScannerProps {
 
 const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false }) => {
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const videoContainerRef = useRef<HTMLDivElement>(null);
   const [scanning, setScanning] = useState(false);
   const [scannedVideo, setScannedVideo] = useState<{
     url: string;
@@ -33,19 +32,25 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
   const [isLoading, setIsLoading] = useState(true);
   const [hasPermission, setHasPermission] = useState(true);
   const [scanDebugInfo, setScanDebugInfo] = useState<string | null>(null);
-  const [detailedDebugMode, setDetailedDebugMode] = useState(false);
   
   const { videos, getVideoById, fetchVideos } = useVideoStore();
   const { qrCodes, incrementScans, recordScanDetails, fetchQRCodes } = useQRCodeStore();
   
-  // Carrega os QR codes e vídeos novamente ao inicializar o componente
+  // Garantir que os dados estejam carregados
   useEffect(() => {
-    if (forceInitialLoad) {
-      console.log("Forçando carregamento inicial de QR codes e vídeos");
-      fetchQRCodes();
-      fetchVideos();
-    }
-  }, [forceInitialLoad, fetchQRCodes, fetchVideos]);
+    console.log("Iniciando carregamento dos dados...");
+    const loadData = async () => {
+      try {
+        console.log("Buscando QR codes e vídeos do banco de dados...");
+        await Promise.all([fetchQRCodes(), fetchVideos()]);
+        console.log(`Dados carregados: ${qrCodes.length} QR codes, ${videos.length} vídeos`);
+      } catch (error) {
+        console.error("Erro ao carregar dados:", error);
+      }
+    };
+    
+    loadData();
+  }, [fetchQRCodes, fetchVideos]);
 
   // Inicializar o scanner
   useEffect(() => {
@@ -107,7 +112,6 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
       
       setScanning(true);
       setScannedVideo(null);
-      setScanDebugInfo(null);
       
       await html5QrCode.start(
         cameraId,
@@ -122,7 +126,6 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
         (errorMessage) => {
           // Suprimir logs de depuração durante o escaneamento normal
           if (errorMessage.includes("No MultiFormat Readers were able to detect the code")) {
-            // Ignorar silenciosamente - este erro é comum durante o escaneamento
             return;
           }
           console.log(errorMessage);
@@ -156,234 +159,120 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
     }
   };
   
-  // Tratar o resultado do escaneamento
+  // Simplificamos a lógica de processamento do QR code para focar apenas no essencial
   const handleSuccessfulScan = (decodedText: string) => {
     // Parar o escaneamento após detectar um QR code
     stopScanning();
     
     console.log("QR Code escaneado:", decodedText);
+    console.log("QR codes disponíveis:", qrCodes);
+    console.log("Vídeos disponíveis:", videos);
     
-    // Verificar se o QR code corresponde a algum dos nossos QR codes
-    try {
-      // Log dos QR codes disponíveis
-      console.log("QR codes disponíveis para correspondência:", qrCodes);
-      console.log("Vídeos disponíveis:", videos);
+    // Verificar se existem QR codes para comparar
+    if (!qrCodes || qrCodes.length === 0) {
+      console.error("Nenhum QR code carregado para comparação");
+      toast({
+        title: "Nenhum QR code disponível",
+        description: "Não há QR codes cadastrados no sistema para comparação.",
+        variant: "destructive"
+      });
+      startScanning();
+      return;
+    }
+    
+    // Primeiro método: verificação direta pelo ID completo
+    let qrCode = qrCodes.find(qr => qr.id === decodedText);
+    
+    // Segundo método: verificação por conteúdo parcial
+    if (!qrCode) {
+      qrCode = qrCodes.find(qr => 
+        decodedText.includes(qr.id) || 
+        qr.id.includes(decodedText)
+      );
+    }
+    
+    // Terceiro método: verificação por URL em formato específico
+    if (!qrCode && decodedText.includes('/ar/')) {
+      const parts = decodedText.split('/ar/');
+      const potentialId = parts[parts.length - 1];
       
-      // Verificar se temos QR codes para comparar
-      if (!qrCodes || qrCodes.length === 0) {
-        console.error("Nenhum QR code carregado para comparação");
-        setScanDebugInfo("Erro: Nenhum QR code está disponível para comparação. Por favor, crie um QR code primeiro.");
+      qrCode = qrCodes.find(qr => 
+        qr.id === potentialId || 
+        potentialId.includes(qr.id) || 
+        qr.id.includes(potentialId)
+      );
+    }
+    
+    // Se encontramos um QR code correspondente
+    if (qrCode) {
+      console.log("QR code encontrado:", qrCode);
+      
+      // IMPORTANTE: Verificação direta da existência do vídeo
+      if (!qrCode.videoId) {
+        toast({
+          title: "QR Code incompleto",
+          description: "Este QR code não tem um vídeo associado.",
+          variant: "destructive"
+        });
+        startScanning();
+        return;
+      }
+      
+      // Verificar se o videoId existe na lista de vídeos
+      const videoExists = videos.some(v => v.id === qrCode?.videoId);
+      console.log(`Verificação do videoId ${qrCode.videoId}: ${videoExists ? 'Encontrado' : 'Não encontrado'}`);
+      
+      // Tentar obter o vídeo pelo ID
+      const video = getVideoById(qrCode.videoId);
+      
+      if (video && video.url) {
+        console.log("Vídeo encontrado:", video);
+        
+        // Exibir o vídeo
+        setScannedVideo({
+          url: video.url,
+          title: video.title
+        });
+        
+        // Registrar o escaneamento
+        incrementScans(qrCode.id);
+        if (qrCode.analyticsEnabled) {
+          recordScanDetails(qrCode.id, {});
+        }
         
         toast({
-          title: "Nenhum QR code disponível",
-          description: "Não há QR codes cadastrados no sistema para comparação.",
+          title: "QR Code reconhecido!",
+          description: `Exibindo vídeo: ${video.title}`
+        });
+        
+        // Iniciar reprodução automática
+        setVideoPlaying(true);
+      } else {
+        console.error("Vídeo não encontrado para o QR code:", qrCode.videoId);
+        setScanDebugInfo(`QR code encontrado (ID: ${qrCode.id}), mas o vídeo associado (VideoID: ${qrCode.videoId}) não foi encontrado.
+        
+Vídeos disponíveis (${videos.length}):
+${videos.map(v => `- ${v.title} (ID: ${v.id})`).join('\n')}`);
+        
+        toast({
+          title: "Vídeo não encontrado",
+          description: "O vídeo associado a este QR code não foi encontrado. O ID pode estar incorreto ou o vídeo foi removido.",
           variant: "destructive"
         });
         
         // Reiniciar o scanner
         startScanning();
-        return;
       }
+    } else {
+      console.log("QR code não encontrado:", decodedText);
+      setScanDebugInfo(`QR code lido (${decodedText}) não corresponde a nenhum QR code cadastrado.
       
-      // Gerar informações de diagnóstico
-      const qrCodesInfo = qrCodes.map(qr => `ID: ${qr.id}, VideoID: ${qr.videoId}, Title: ${qr.videoTitle}`).join('\n');
-      const videosInfo = videos.map(v => `ID: ${v.id}, Title: ${v.title}, URL: ${v.url}`).join('\n');
-      
-      setScanDebugInfo(
-        `QR code lido: ${decodedText}\n\n` +
-        `QR codes disponíveis (${qrCodes.length}):\n${qrCodesInfo}\n\n` +
-        `Vídeos disponíveis (${videos.length}):\n${videosInfo}`
-      );
-      
-      // Tentativa direta com o texto do QR code
-      let found = false;
-      let qrCode = null;
-      
-      // Método 1: Correspondência direta com ID
-      qrCode = qrCodes.find(qr => qr.id === decodedText);
-      if (qrCode) {
-        console.log("Método 1: QR code encontrado por ID exato");
-        found = true;
-      }
-      
-      // Método 2: Correspondência com videoId
-      if (!found) {
-        qrCode = qrCodes.find(qr => qr.videoId === decodedText);
-        if (qrCode) {
-          console.log("Método 2: QR code encontrado por videoId exato");
-          found = true;
-        }
-      }
-      
-      // Método 3: QR code contém ID ou ID contém QR code
-      if (!found) {
-        qrCode = qrCodes.find(qr => 
-          decodedText.includes(qr.id) || 
-          qr.id.includes(decodedText)
-        );
-        if (qrCode) {
-          console.log("Método 3: QR code encontrado por correspondência parcial de ID");
-          found = true;
-        }
-      }
-      
-      // Método 4: URL com formato específico
-      if (!found && decodedText.includes('/ar/')) {
-        const parts = decodedText.split('/ar/');
-        const potentialId = parts[parts.length - 1];
-        
-        qrCode = qrCodes.find(qr => 
-          qr.id === potentialId || 
-          potentialId.includes(qr.id) || 
-          qr.id.includes(potentialId)
-        );
-        
-        if (qrCode) {
-          console.log("Método 4: QR code encontrado em URL /ar/");
-          found = true;
-        }
-      }
-      
-      // Método 5: Formato qr-XXXX
-      if (!found && decodedText.startsWith('qr-')) {
-        const cleanId = decodedText.replace('qr-', '');
-        qrCode = qrCodes.find(qr => 
-          qr.id === cleanId || 
-          qr.id.includes(cleanId) || 
-          cleanId.includes(qr.id)
-        );
-        
-        if (qrCode) {
-          console.log("Método 5: QR code encontrado em formato qr-XXXX");
-          found = true;
-        }
-      }
-      
-      // Método 6: Última tentativa - qualquer correspondência parcial
-      if (!found) {
-        // Verifica cada QR code contra o texto decodificado
-        for (const qr of qrCodes) {
-          // Compara IDs
-          if (qr.id.toLowerCase().includes(decodedText.toLowerCase()) || 
-              decodedText.toLowerCase().includes(qr.id.toLowerCase())) {
-            qrCode = qr;
-            console.log("Método 6: QR code encontrado por correspondência parcial de texto");
-            found = true;
-            break;
-          }
-          
-          // Compara videoId
-          if (qr.videoId.toLowerCase().includes(decodedText.toLowerCase()) || 
-              decodedText.toLowerCase().includes(qr.videoId.toLowerCase())) {
-            qrCode = qr;
-            console.log("Método 6: QR code encontrado por correspondência parcial de videoId");
-            found = true;
-            break;
-          }
-        }
-      }
-      
-      // Se encontramos um QR code correspondente
-      if (qrCode) {
-        console.log("QR code encontrado:", qrCode);
-        setScanDebugInfo(prev => `${prev}\n\nQR code encontrado: ID=${qrCode?.id}, VideoID=${qrCode?.videoId}`);
-        
-        // Verificar se o videoId existe
-        if (!qrCode.videoId) {
-          console.error("QR code não tem videoId associado");
-          setScanDebugInfo(prev => `${prev}\nERRO: QR code não tem videoId associado.`);
-          
-          toast({
-            title: "QR Code incompleto",
-            description: "Este QR code não tem um vídeo associado.",
-            variant: "destructive"
-          });
-          
-          startScanning();
-          return;
-        }
-        
-        // Verificar diretamente se existe algum vídeo com esse ID
-        const videoExists = videos.some(v => v.id === qrCode?.videoId);
-        console.log(`Verificação direta do videoId ${qrCode.videoId}: ${videoExists ? 'Encontrado' : 'Não encontrado'}`);
-        setScanDebugInfo(prev => `${prev}\nVerificação direta do videoId: ${videoExists ? 'Encontrado' : 'Não encontrado'}`);
-        
-        const video = getVideoById(qrCode.videoId);
-        
-        if (video) {
-          console.log("Vídeo encontrado:", video);
-          setScanDebugInfo(prev => `${prev}\nVídeo encontrado: ${video.title}`);
-          
-          // Verificar se a URL do vídeo é válida
-          if (!video.url) {
-            console.error("Vídeo encontrado, mas sem URL");
-            setScanDebugInfo(prev => `${prev}\nERRO: O vídeo não possui URL.`);
-            
-            toast({
-              title: "Vídeo sem URL",
-              description: "O vídeo associado a este QR code não possui URL para reprodução.",
-              variant: "destructive"
-            });
-            
-            startScanning();
-            return;
-          }
-          
-          setScannedVideo({
-            url: video.url,
-            title: video.title
-          });
-          
-          // Incrementar contagem de escaneamentos
-          incrementScans(qrCode.id);
-          
-          // Registrar detalhes do escaneamento
-          if (qrCode.analyticsEnabled) {
-            recordScanDetails(qrCode.id, {});
-          }
-          
-          toast({
-            title: "QR Code reconhecido!",
-            description: `Exibindo vídeo: ${video.title}`
-          });
-          
-          // Iniciar reprodução automática do vídeo
-          setVideoPlaying(true);
-          return;
-        } else {
-          console.error("Vídeo não encontrado para o QR code:", qrCode.videoId);
-          setScanDebugInfo(prev => `${prev}\nERRO: Vídeo não encontrado para o QR code: VideoID=${qrCode.videoId}`);
-          
-          // Verificar se existem vídeos no sistema
-          console.log("Vídeos disponíveis:", videos);
-          setScanDebugInfo(prev => `${prev}\nVídeos disponíveis: ${videos.length}`);
-          
-          toast({
-            title: "Vídeo não encontrado",
-            description: "O vídeo associado a este QR code não foi encontrado. O videoId pode estar incorreto ou o vídeo pode ter sido removido.",
-            variant: "destructive"
-          });
-        }
-      } else {
-        console.log("QR code não encontrado:", decodedText);
-        setScanDebugInfo(prev => `${prev}\n\nNenhum QR code correspondente encontrado`);
-        
-        toast({
-          title: "QR Code não reconhecido",
-          description: "Este QR code não corresponde a nenhum dos vídeos cadastrados.",
-          variant: "destructive"
-        });
-      }
-      
-      // Reiniciar o scanner
-      startScanning();
-    } catch (error) {
-      console.error("Erro ao processar QR code:", error);
-      setScanDebugInfo(`Erro ao processar QR code: ${error.message || 'Erro desconhecido'}`);
+QR codes disponíveis (${qrCodes.length}):
+${qrCodes.map(qr => `- ${qr.videoTitle} (ID: ${qr.id})`).join('\n')}`);
       
       toast({
-        title: "Erro ao processar QR Code",
-        description: "Ocorreu um erro ao tentar processar o QR code escaneado.",
+        title: "QR Code não reconhecido",
+        description: "Este QR code não corresponde a nenhum dos QR codes cadastrados.",
         variant: "destructive"
       });
       
@@ -392,7 +281,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
     }
   };
   
-  // Alternar entre câmeras (se houver múltiplas)
+  // Alternar entre câmeras
   const changeCamera = async (deviceId: string) => {
     if (scanning) {
       await stopScanning();
@@ -400,18 +289,17 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
     
     setCameraId(deviceId);
     
-    // Reiniciar o scanner com a nova câmera
     if (scanning) {
       setTimeout(() => startScanning(), 500);
     }
   };
 
-  // Solicitar permissão de câmera novamente
+  // Solicitar permissão de câmera
   const requestCameraPermission = async () => {
     try {
       await navigator.mediaDevices.getUserMedia({ video: true });
       setHasPermission(true);
-      // Reiniciar o processo de detecção de câmeras
+      
       const devices = await Html5Qrcode.getCameras();
       if (devices && devices.length) {
         setCameras(devices);
@@ -452,6 +340,38 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
       title: "Informações exportadas",
       description: "As informações de diagnóstico foram exportadas com sucesso."
     });
+  };
+  
+  // Forçar recarregamento dos dados
+  const forceDataReload = async () => {
+    try {
+      const qrPromise = fetchQRCodes();
+      const videoPromise = fetchVideos();
+      
+      await Promise.all([qrPromise, videoPromise]);
+      
+      toast({
+        title: "Dados recarregados",
+        description: `${qrCodes.length} QR codes e ${videos.length} vídeos carregados do banco de dados.`
+      });
+      
+      setScanDebugInfo(`Dados recarregados com sucesso:
+- QR Codes: ${qrCodes.length}
+- Vídeos: ${videos.length}
+
+Exemplos de QR codes:
+${qrCodes.slice(0, 3).map(qr => `- ${qr.videoTitle} (ID: ${qr.id.substring(0, 8)}..., VideoID: ${qr.videoId.substring(0, 8)}...)`).join('\n')}
+
+Exemplos de vídeos:
+${videos.slice(0, 3).map(v => `- ${v.title} (ID: ${v.id.substring(0, 8)}..., URL: ${v.url ? '✓' : '✗'})`).join('\n')}`);
+    } catch (error) {
+      console.error("Erro ao recarregar dados:", error);
+      toast({
+        title: "Erro ao recarregar dados",
+        description: "Ocorreu um erro ao tentar recarregar os dados. Verifique a conexão com o banco de dados.",
+        variant: "destructive"
+      });
+    }
   };
   
   if (isLoading) {
@@ -537,7 +457,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
             )}
           </div>
         ) : (
-          <div ref={videoContainerRef} className="w-full h-full relative bg-black rounded-lg overflow-hidden">
+          <div className="w-full h-full relative bg-black rounded-lg overflow-hidden">
             {/* Exibir o vídeo escaneado */}
             <VideoPlayer
               videoUrl={scannedVideo.url}
@@ -618,7 +538,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
         </div>
       )}
 
-      {/* Área de debug - será útil para solucionar problemas de reconhecimento */}
+      {/* Área de debug */}
       {scanDebugInfo && (
         <div className="mt-4 p-3 bg-muted rounded-md text-sm">
           <div className="flex justify-between items-center mb-1">
@@ -638,78 +558,16 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
       )}
 
       {/* Ferramentas de diagnóstico */}
-      <div className="mt-4 space-y-2">
-        <p className="text-sm font-medium">Ferramentas de diagnóstico:</p>
-        <div className="grid grid-cols-2 gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => {
-              // Mostrar os QR codes cadastrados
-              const testInfo = qrCodes.map(qr => `ID: ${qr.id}, VideoID: ${qr.videoId}, Title: ${qr.videoTitle}`).join('\n');
-              const videosInfo = videos.map(v => `ID: ${v.id}, Title: ${v.title}, URL: ${v.url}`).join('\n');
-              
-              setScanDebugInfo(
-                `QR codes cadastrados (${qrCodes.length}):\n${testInfo}\n\n` +
-                `Vídeos disponíveis (${videos.length}):\n${videosInfo}`
-              );
-            }}
-          >
-            Verificar QR Codes e Vídeos
-          </Button>
-          
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={async () => {
-              // Recarregar os QR codes e vídeos do banco de dados
-              await fetchQRCodes();
-              await fetchVideos();
-              
-              toast({
-                title: "Dados recarregados",
-                description: `Foram carregados ${qrCodes.length} QR codes e ${videos.length} vídeos do banco de dados.`
-              });
-            }}
-          >
-            Recarregar Todos os Dados
-          </Button>
-          
-          <Button 
-            variant="outline" 
-            size="sm"
-            className="col-span-2"
-            onClick={() => setDetailedDebugMode(!detailedDebugMode)}
-          >
-            {detailedDebugMode ? "Ocultar IDs completos" : "Mostrar IDs completos"}
-          </Button>
-          
-          {detailedDebugMode && (
-            <div className="col-span-2 text-xs p-2 bg-muted rounded-md mt-2">
-              <p className="font-medium mb-1">IDs Completos:</p>
-              <div>
-                <p className="font-medium">QR Codes:</p>
-                <ul className="list-disc pl-5">
-                  {qrCodes.map(qr => (
-                    <li key={qr.id}>
-                      ID: {qr.id} | VideoID: {qr.videoId}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="mt-2">
-                <p className="font-medium">Vídeos:</p>
-                <ul className="list-disc pl-5">
-                  {videos.map(v => (
-                    <li key={v.id}>
-                      ID: {v.id} | URL: {v.url}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
-        </div>
+      <div className="mt-4">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="w-full"
+          onClick={forceDataReload}
+        >
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Recarregar QR Codes e Vídeos do Banco de Dados
+        </Button>
       </div>
     </div>
   );
