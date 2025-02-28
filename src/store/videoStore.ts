@@ -96,7 +96,8 @@ export const useVideoStore = create<VideoStore>()(
         // Se houver um arquivo local, fazer upload para o Storage
         if (video.localFile) {
           const fileName = video.localFile.name;
-          const fileExt = fileName.split('.').pop();
+          // Usando type assertion para garantir que fileName é tratado como string
+          const fileExt = (fileName as string).split('.').pop();
           const filePath = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
           
           const { data: uploadData, error: uploadError } = await supabase.storage
@@ -122,7 +123,8 @@ export const useVideoStore = create<VideoStore>()(
         if (Array.isArray(video.tags)) {
           processedTags = video.tags;
         } else if (typeof video.tags === 'string') {
-          processedTags = video.tags.split(',').map(tag => tag.trim());
+          // Garantir que estamos trabalhando com string
+          processedTags = (video.tags as string).split(',').map(tag => tag.trim());
         }
         
         // Obter o ID do usuário autenticado
@@ -199,7 +201,8 @@ export const useVideoStore = create<VideoStore>()(
           if (Array.isArray(updates.tags)) {
             updatedTags = updates.tags;
           } else if (typeof updates.tags === 'string') {
-            updatedTags = updates.tags.split(',').map(tag => tag.trim());
+            // Garantir que estamos trabalhando com string
+            updatedTags = (updates.tags as string).split(',').map(tag => tag.trim());
           }
         }
         
@@ -283,9 +286,12 @@ export const useVideoStore = create<VideoStore>()(
       incrementViews: async (id) => {
         try {
           // Vamos usar o RPC function criada no Supabase
-          const { error } = await supabase.rpc('increment_views', { 
-            video_id: id as any 
-          });
+          // Usar type casting para corrigir erro de tipagem
+          const params = { 
+            video_id: id 
+          } as Record<string, any>;
+          
+          const { error } = await supabase.rpc('increment_views', params);
           
           if (error) {
             console.error('Erro ao incrementar visualizações:', error);

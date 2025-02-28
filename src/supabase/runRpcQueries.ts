@@ -4,8 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 // Função para incrementar visualizações
 export const incrementVideoViews = async (videoId: string) => {
   try {
-    // Usando type assertion (any) para contornar o problema de tipagem
-    const params: Record<string, any> = { video_id: videoId };
+    // Criar um objeto de parâmetros com type assertion para evitar erro
+    const params = {
+      video_id: videoId
+    } as Record<string, any>;
     
     const { error } = await supabase.rpc('increment_views', params);
     
