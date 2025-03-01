@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from "react";
-import QRScanner from "@/components/qr/QRScanner";
+import QRScannerContainer from "@/components/qr/QRScannerContainer";
 import Container from "@/components/ui/container";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -90,7 +90,7 @@ const QRScannerPage = () => {
               </Button>
             </div>
           ) : (
-            <QRScanner 
+            <QRScannerContainer 
               onClose={() => navigate("/qrcodes")} 
               forceInitialLoad={false} 
             />
