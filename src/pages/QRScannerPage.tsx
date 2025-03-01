@@ -24,7 +24,10 @@ const QRScannerPage = () => {
     const loadData = async () => {
       try {
         // Carregar dados em paralelo
-        await Promise.all([fetchQRCodes(), fetchVideos()]);
+        const [qrResult, videoResult] = await Promise.all([
+          fetchQRCodes(),
+          fetchVideos()
+        ]);
         
         // Verificar se o componente ainda está montado antes de atualizar estado
         if (mounted) {

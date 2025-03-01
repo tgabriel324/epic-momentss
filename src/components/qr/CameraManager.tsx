@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { Camera, PauseCircle, RefreshCw } from "lucide-react";
@@ -24,78 +24,98 @@ const CameraManager: React.FC<CameraManagerProps> = ({ onScan, onCameraInitializ
   const [hasPermission, setHasPermission] = useState(true);
   const [scanner, setScanner] = useState<Html5Qrcode | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const qrReaderRef = useRef<HTMLDivElement>(null);
   
   // Inicialização da câmera
   useEffect(() => {
     console.log("CameraManager montado");
     
-    const initializeCamera = async () => {
-      console.log("Inicializando câmeras...");
-      setIsLoading(true);
-      
-      try {
-        // Verificar permissão da câmera
-        try {
-          await navigator.mediaDevices.getUserMedia({ video: true });
-          setHasPermission(true);
-        } catch (permError) {
-          console.error("Erro de permissão da câmera:", permError);
-          setHasPermission(false);
-          setIsLoading(false);
-          return;
-        }
-        
-        // Tentar obter lista de câmeras
-        try {
-          const devices = await Html5Qrcode.getCameras();
-          console.log("Câmeras disponíveis:", devices);
-          
-          if (devices && devices.length) {
-            setCameras(devices);
-            setCameraId(devices[0].id);
-            setIsLoading(false);
-            
-            // Criar instância do scanner mas não iniciar ainda
-            const html5QrCode = new Html5Qrcode("qr-reader");
-            setScanner(html5QrCode);
-            setIsInitialized(true);
-            onCameraInitialized(true);
-          } else {
-            console.warn("Nenhuma câmera encontrada");
-            toast({
-              title: "Câmera não encontrada",
-              description: "Não foi possível encontrar uma câmera no seu dispositivo.",
-              variant: "destructive"
-            });
-            setHasPermission(false);
-            setIsLoading(false);
-          }
-        } catch (camError) {
-          console.error("Erro ao acessar lista de câmeras:", camError);
-          toast({
-            title: "Erro ao listar câmeras",
-            description: "Não foi possível listar as câmeras disponíveis.",
-            variant: "destructive"
-          });
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error("Erro geral de inicialização:", error);
-        setHasPermission(false);
-        setIsLoading(false);
-      }
-    };
-    
-    initializeCamera();
+    // Esperamos um tempo curto para garantir que o elemento DOM esteja pronto
+    const timer = setTimeout(() => {
+      initializeCamera();
+    }, 300);
     
     return () => {
+      clearTimeout(timer);
       if (scanner && scanner.isScanning) {
         scanner.stop().catch(error => {
           console.error("Erro ao parar o scanner:", error);
         });
       }
     };
-  }, [onCameraInitialized]);
+  }, []);
+  
+  const initializeCamera = async () => {
+    console.log("Inicializando câmeras...");
+    setIsLoading(true);
+    
+    if (!qrReaderRef.current) {
+      console.error("Elemento qr-reader ainda não está disponível no DOM");
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      // Verificar permissão da câmera
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: true });
+        setHasPermission(true);
+      } catch (permError) {
+        console.error("Erro de permissão da câmera:", permError);
+        setHasPermission(false);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Tentar obter lista de câmeras
+      try {
+        const devices = await Html5Qrcode.getCameras();
+        console.log("Câmeras disponíveis:", devices);
+        
+        if (devices && devices.length) {
+          setCameras(devices);
+          setCameraId(devices[0].id);
+          setIsLoading(false);
+          
+          // Certifique-se de que o elemento existe
+          if (qrReaderRef.current) {
+            const html5QrCode = new Html5Qrcode(qrReaderRef.current.id);
+            setScanner(html5QrCode);
+            setIsInitialized(true);
+            onCameraInitialized(true);
+          } else {
+            console.error("Elemento qr-reader não encontrado durante a inicialização do scanner");
+            toast({
+              title: "Erro de inicialização",
+              description: "Não foi possível inicializar o scanner. Tente recarregar a página.",
+              variant: "destructive"
+            });
+          }
+        } else {
+          console.warn("Nenhuma câmera encontrada");
+          toast({
+            title: "Câmera não encontrada",
+            description: "Não foi possível encontrar uma câmera no seu dispositivo.",
+            variant: "destructive"
+          });
+          setHasPermission(false);
+          setIsLoading(false);
+        }
+      } catch (camError) {
+        console.error("Erro ao acessar lista de câmeras:", camError);
+        toast({
+          title: "Erro ao listar câmeras",
+          description: "Não foi possível listar as câmeras disponíveis.",
+          variant: "destructive"
+        });
+        setIsLoading(false);
+      }
+    } catch (error) {
+      console.error("Erro geral de inicialização:", error);
+      setHasPermission(false);
+      setIsLoading(false);
+    }
+  };
   
   // Iniciar escaneamento
   const startScanning = useCallback(async () => {
@@ -275,9 +295,10 @@ const CameraManager: React.FC<CameraManagerProps> = ({ onScan, onCameraInitializ
       )}
       
       <div className="relative aspect-square md:aspect-video w-full">
-        <div className="h-full">
+        <div id="camera-container" className="h-full">
           <div 
             id="qr-reader" 
+            ref={qrReaderRef}
             className="w-full h-full rounded-lg overflow-hidden"
           ></div>
           

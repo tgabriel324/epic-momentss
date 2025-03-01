@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useVideoStore } from "@/store/videoStore";
@@ -27,33 +26,47 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
   const { videos, getVideoById, fetchVideos } = useVideoStore();
   const { qrCodes, incrementScans, recordScanDetails, fetchQRCodes } = useQRCodeStore();
   
-  // Carregar dados quando o componente montar
+  // Carregar dados quando o componente montar (apenas uma vez)
   useEffect(() => {
     console.log("QRScanner montado - carregar dados iniciais");
+    let isMounted = true;
     
     const loadInitialData = async () => {
       try {
         if (!dataLoaded || forceInitialLoad) {
           console.log("Carregando dados iniciais...");
+          
+          // Carregar dados em paralelo e aguardar a conclusão
           await Promise.all([
             fetchQRCodes(),
             fetchVideos()
           ]);
-          setDataLoaded(true);
-          console.log(`Dados carregados: ${qrCodes.length} QR codes, ${videos.length} vídeos`);
+          
+          // Verificar se o componente ainda está montado antes de atualizar o estado
+          if (isMounted) {
+            setDataLoaded(true);
+            console.log(`Dados carregados: ${qrCodes.length} QR codes, ${videos.length} vídeos`);
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar dados iniciais:", error);
-        toast({
-          title: "Erro ao carregar dados",
-          description: "Ocorreu um erro ao carregar os QR codes e vídeos.",
-          variant: "destructive"
-        });
+        if (isMounted) {
+          toast({
+            title: "Erro ao carregar dados",
+            description: "Ocorreu um erro ao carregar os QR codes e vídeos.",
+            variant: "destructive"
+          });
+        }
       }
     };
     
     loadInitialData();
-  }, [fetchQRCodes, fetchVideos, forceInitialLoad, qrCodes.length, videos.length, dataLoaded]);
+    
+    // Cleanup para evitar atualizar estado em componente desmontado
+    return () => {
+      isMounted = false;
+    };
+  }, []);  // Dependências vazias para executar apenas uma vez
   
   // Função para processar o escaneamento do QR code
   const handleScan = (decodedText: string) => {
@@ -145,7 +158,7 @@ ${videos.map(v => `- ${v.title} (ID: ${v.id})`).join('\n')}`);
       setScanDebugInfo(`QR code lido (${decodedText}) não corresponde a nenhum QR code cadastrado.
       
 QR codes disponíveis (${qrCodes.length}):
-${qrCodes.map(qr => `- ${qr.videoTitle} (ID: ${qr.id})`).join('\n')}`);
+${qrCodes.map(qr => `- ${qr.videoTitle} (ID: ${qr.id.substring(0, 8)}..., VideoID: ${qr.videoId.substring(0, 8)}...)`).join('\n')}`);
       
       toast({
         title: "QR Code não reconhecido",
