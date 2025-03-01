@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
@@ -411,7 +412,7 @@ ${videos.slice(0, 3).map(v => `- ${v.title} (ID: ${v.id.substring(0, 8)}..., URL
   }
   
   return (
-    <div className="flex flex-col space-y-4 max-w-2xl mx-auto">
+    <div className="flex flex-col space-y-4">
       {/* Seletor de câmera */}
       {cameras.length > 1 && (
         <div className="mb-4">
@@ -434,51 +435,49 @@ ${videos.slice(0, 3).map(v => `- ${v.title} (ID: ${v.id.substring(0, 8)}..., URL
         </div>
       )}
       
-      {/* Área de visualização da câmera - Centralizada e com margens adequadas */}
-      <div className="w-full flex justify-center items-center">
-        <div className="relative w-full max-w-md aspect-square rounded-xl overflow-hidden border border-muted">
-          {!scannedVideo ? (
-            <div className="h-full">
-              {/* Elemento onde o scanner será renderizado */}
-              <div 
-                id="qr-reader" 
-                className="w-full h-full"
-              ></div>
-              
-              {/* Instrução para posicionar o QR code */}
-              {scanning && (
-                <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-                  <div className="w-64 h-64 border-2 border-primary border-dashed rounded-lg flex items-center justify-center">
-                    <div className="text-primary text-center px-4 py-2 bg-background/80 rounded-md">
-                      Posicione o QR Code aqui
-                    </div>
+      {/* Área de visualização da câmera */}
+      <div className="relative aspect-square md:aspect-video w-full">
+        {!scannedVideo ? (
+          <div className="h-full">
+            {/* Elemento onde o scanner será renderizado */}
+            <div 
+              id="qr-reader" 
+              className="w-full h-full rounded-lg overflow-hidden"
+            ></div>
+            
+            {/* Instrução para posicionar o QR code */}
+            {scanning && (
+              <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
+                <div className="w-64 h-64 border-2 border-primary border-dashed rounded-lg flex items-center justify-center">
+                  <div className="text-primary text-center px-4 py-2 bg-background/80 rounded-md">
+                    Posicione o QR Code aqui
                   </div>
                 </div>
-              )}
-            </div>
-          ) : (
-            <div className="w-full h-full relative bg-black rounded-lg overflow-hidden">
-              {/* Exibir o vídeo escaneado */}
-              <VideoPlayer
-                videoUrl={scannedVideo.url}
-                autoPlay={videoPlaying}
-                loop={true}
-                controls={true}
-                className="w-full h-full object-contain"
-                onLoadedData={() => setVideoPlaying(true)}
-              />
-              
-              {/* Informações do vídeo */}
-              <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent p-4">
-                <h3 className="text-white font-medium text-lg">{scannedVideo.title}</h3>
               </div>
+            )}
+          </div>
+        ) : (
+          <div className="w-full h-full relative bg-black rounded-lg overflow-hidden">
+            {/* Exibir o vídeo escaneado */}
+            <VideoPlayer
+              videoUrl={scannedVideo.url}
+              autoPlay={videoPlaying}
+              loop={true}
+              controls={true}
+              className="w-full h-full object-contain"
+              onLoadedData={() => setVideoPlaying(true)}
+            />
+            
+            {/* Informações do vídeo */}
+            <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent p-4">
+              <h3 className="text-white font-medium text-lg">{scannedVideo.title}</h3>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
       
-      {/* Controles - Mais espaçados e organizados */}
-      <div className="flex justify-center mt-6 space-x-4">
+      {/* Controles */}
+      <div className="flex justify-center mt-4 space-x-4">
         {!scannedVideo ? (
           <Button
             className="w-full sm:w-auto"
@@ -498,7 +497,7 @@ ${videos.slice(0, 3).map(v => `- ${v.title} (ID: ${v.id.substring(0, 8)}..., URL
             )}
           </Button>
         ) : (
-          <div className="flex flex-col sm:flex-row w-full space-y-2 sm:space-y-0 sm:space-x-4 justify-center">
+          <div className="flex flex-col sm:flex-row w-full space-y-2 sm:space-y-0 sm:space-x-4">
             <Button 
               variant="outline" 
               className="w-full sm:w-auto"
@@ -541,8 +540,8 @@ ${videos.slice(0, 3).map(v => `- ${v.title} (ID: ${v.id.substring(0, 8)}..., URL
 
       {/* Área de debug */}
       {scanDebugInfo && (
-        <div className="mt-6 p-4 bg-muted rounded-md text-sm">
-          <div className="flex justify-between items-center mb-2">
+        <div className="mt-4 p-3 bg-muted rounded-md text-sm">
+          <div className="flex justify-between items-center mb-1">
             <p className="font-medium">Informações de diagnóstico:</p>
             <Button 
               variant="ghost" 
@@ -554,12 +553,12 @@ ${videos.slice(0, 3).map(v => `- ${v.title} (ID: ${v.id.substring(0, 8)}..., URL
               Exportar
             </Button>
           </div>
-          <pre className="whitespace-pre-wrap text-xs overflow-auto max-h-40">{scanDebugInfo}</pre>
+          <pre className="whitespace-pre-wrap text-xs">{scanDebugInfo}</pre>
         </div>
       )}
 
       {/* Ferramentas de diagnóstico */}
-      <div className="mt-6">
+      <div className="mt-4">
         <Button 
           variant="outline" 
           size="sm" 
