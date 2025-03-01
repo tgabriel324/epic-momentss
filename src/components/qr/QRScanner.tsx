@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
 import { useVideoStore } from "@/store/videoStore";
@@ -33,96 +33,18 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
   const [hasPermission, setHasPermission] = useState(true);
   const [scanDebugInfo, setScanDebugInfo] = useState<string | null>(null);
   const [scanInitialized, setScanInitialized] = useState(false);
+  const initializingRef = useRef(false);
   
-  const { videos, getVideoById, fetchVideos } = useVideoStore();
-  const { qrCodes, incrementScans, recordScanDetails, fetchQRCodes } = useQRCodeStore();
+  const { videos, getVideoById } = useVideoStore();
+  const { qrCodes, incrementScans, recordScanDetails } = useQRCodeStore();
   
-  // Carregar QR codes e vídeos
+  // Carregamento único dos dados
   useEffect(() => {
-    console.log("Iniciando carregamento dos dados...");
-    const loadData = async () => {
-      try {
-        console.log("Buscando QR codes e vídeos do banco de dados...");
-        await Promise.all([fetchQRCodes(), fetchVideos()]);
-        console.log(`Dados carregados: ${qrCodes.length} QR codes, ${videos.length} vídeos`);
-      } catch (error) {
-        console.error("Erro ao carregar dados:", error);
-      }
-    };
+    // Não fazemos nada aqui para evitar ciclos - os dados já estão carregados na QRScannerPage
+    console.log("QRScanner montado");
     
-    loadData();
-  }, []);
-  
-  // Inicializar o scanner
-  useEffect(() => {
-    let mounted = true;
-    
-    const initializeScanner = async () => {
-      if (!mounted) return;
-      
-      setIsLoading(true);
-      try {
-        console.log("Tentando inicializar o scanner e acessar câmeras...");
-        
-        // Solicitar permissão para a câmera antes de tentar acessar a lista
-        try {
-          await navigator.mediaDevices.getUserMedia({ video: true });
-          if (!mounted) return;
-          setHasPermission(true);
-        } catch (permError) {
-          console.error("Erro de permissão da câmera:", permError);
-          if (!mounted) return;
-          setHasPermission(false);
-          setIsLoading(false);
-          return;
-        }
-        
-        // Agora tenta obter a lista de câmeras
-        const devices = await Html5Qrcode.getCameras();
-        console.log("Câmeras disponíveis:", devices);
-        
-        if (!mounted) return;
-        
-        if (devices && devices.length) {
-          setCameras(devices);
-          setCameraId(devices[0].id);
-          // Inicia o scanner automaticamente após carregar as câmeras
-          setTimeout(() => {
-            if (mounted) {
-              startScanning(devices[0].id);
-            }
-          }, 1000);
-        } else {
-          console.warn("Nenhuma câmera encontrada");
-          toast({
-            title: "Câmera não encontrada",
-            description: "Não foi possível encontrar uma câmera no seu dispositivo.",
-            variant: "destructive"
-          });
-          setHasPermission(false);
-        }
-      } catch (error) {
-        console.error("Erro ao acessar a câmera:", error);
-        if (!mounted) return;
-        
-        toast({
-          title: "Erro ao acessar câmera",
-          description: "Verifique se você concedeu permissão para a câmera.",
-          variant: "destructive"
-        });
-        setHasPermission(false);
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    initializeScanner();
-    
-    // Cleanup function
     return () => {
-      mounted = false;
+      console.log("QRScanner desmontado");
       if (scannerRef.current && scannerRef.current.isScanning) {
         scannerRef.current.stop().catch(error => {
           console.error("Erro ao parar o scanner:", error);
@@ -132,7 +54,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
   }, []);
   
   // Iniciar o escaneamento
-  const startScanning = async (camId = cameraId) => {
+  const startScanning = useCallback(async (camId = cameraId) => {
     if (!camId) {
       console.error("Nenhuma câmera selecionada para iniciar o scanner");
       toast({
@@ -143,10 +65,17 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
       return;
     }
     
+    // Se já estiver escaneando, não inicie novamente
+    if (scanning) {
+      console.log("Scanner já está em execução, ignorando solicitação de início");
+      return;
+    }
+    
     // Se o scanner já estiver em execução, pare-o primeiro
     if (scannerRef.current && scannerRef.current.isScanning) {
       try {
         await scannerRef.current.stop();
+        console.log("Scanner anterior parado com sucesso");
       } catch (error) {
         console.error("Erro ao parar o scanner existente:", error);
       }
@@ -218,7 +147,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
         variant: "destructive"
       });
     }
-  };
+  }, [cameraId, scanning, toast]);
   
   // Parar o escaneamento
   const stopScanning = async () => {
@@ -238,6 +167,81 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
       }
     }
   };
+  
+  // Inicialização da câmera - separado do useEffect principal
+  useEffect(() => {
+    // Evitar inicialização duplicada
+    if (initializingRef.current) {
+      console.log("Inicialização já em andamento, ignorando");
+      return;
+    }
+    
+    // Marcar como em inicialização
+    initializingRef.current = true;
+    
+    const initializeScanner = async () => {
+      console.log("Iniciando processo de inicialização da câmera...");
+      setIsLoading(true);
+      
+      try {
+        // Solicitar permissão para a câmera
+        try {
+          await navigator.mediaDevices.getUserMedia({ video: true });
+          setHasPermission(true);
+        } catch (permError) {
+          console.error("Erro de permissão da câmera:", permError);
+          setHasPermission(false);
+          setIsLoading(false);
+          initializingRef.current = false;
+          return;
+        }
+        
+        // Tentar obter a lista de câmeras
+        try {
+          const devices = await Html5Qrcode.getCameras();
+          console.log("Câmeras disponíveis:", devices);
+          
+          if (devices && devices.length) {
+            setCameras(devices);
+            setCameraId(devices[0].id);
+            
+            // Iniciar scanner com atraso para garantir que o DOM esteja pronto
+            setTimeout(() => {
+              startScanning(devices[0].id);
+              setIsLoading(false);
+              initializingRef.current = false;
+            }, 1000);
+          } else {
+            console.warn("Nenhuma câmera encontrada");
+            toast({
+              title: "Câmera não encontrada",
+              description: "Não foi possível encontrar uma câmera no seu dispositivo.",
+              variant: "destructive"
+            });
+            setHasPermission(false);
+            setIsLoading(false);
+            initializingRef.current = false;
+          }
+        } catch (camError) {
+          console.error("Erro ao acessar lista de câmeras:", camError);
+          toast({
+            title: "Erro ao listar câmeras",
+            description: "Não foi possível listar as câmeras disponíveis.",
+            variant: "destructive"
+          });
+          setIsLoading(false);
+          initializingRef.current = false;
+        }
+      } catch (error) {
+        console.error("Erro geral de inicialização:", error);
+        setHasPermission(false);
+        setIsLoading(false);
+        initializingRef.current = false;
+      }
+    };
+    
+    initializeScanner();
+  }, [startScanning, toast]);
   
   // Lógica de processamento do QR code
   const handleSuccessfulScan = (decodedText: string) => {
@@ -378,6 +382,9 @@ ${qrCodes.map(qr => `- ${qr.videoTitle} (ID: ${qr.id})`).join('\n')}`);
     try {
       await navigator.mediaDevices.getUserMedia({ video: true });
       setHasPermission(true);
+      
+      // Reiniciar processo de inicialização
+      initializingRef.current = false;
       
       const devices = await Html5Qrcode.getCameras();
       if (devices && devices.length) {

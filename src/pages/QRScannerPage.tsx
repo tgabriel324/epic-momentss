@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import QRScanner from "@/components/qr/QRScanner";
 import Container from "@/components/ui/container";
 import { Button } from "@/components/ui/button";
@@ -12,16 +12,42 @@ const QRScannerPage = () => {
   const navigate = useNavigate();
   const { qrCodes, fetchQRCodes, loading: loadingQRCodes } = useQRCodeStore();
   const { videos, fetchVideos, loading: loadingVideos } = useVideoStore();
+  const [dataLoaded, setDataLoaded] = useState(false);
 
-  // Carregar QR codes e vídeos quando a página for montada
+  // Carregar QR codes e vídeos quando a página for montada - apenas uma vez
   useEffect(() => {
     console.log("QRScannerPage: Carregando dados...");
-    // Recarregar os dados do banco de dados para garantir dados atualizados
-    fetchQRCodes();
-    fetchVideos();
-  }, [fetchQRCodes, fetchVideos]);
+    
+    // Flag para controlar se o componente ainda está montado
+    let mounted = true;
+    
+    const loadData = async () => {
+      try {
+        // Carregar dados em paralelo
+        await Promise.all([fetchQRCodes(), fetchVideos()]);
+        
+        // Verificar se o componente ainda está montado antes de atualizar estado
+        if (mounted) {
+          console.log(`Dados carregados: ${qrCodes.length} QR codes, ${videos.length} vídeos`);
+          setDataLoaded(true);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar dados:", error);
+        if (mounted) {
+          setDataLoaded(true); // Mesmo com erro, marcamos como carregado para mostrar mensagens de erro
+        }
+      }
+    };
+    
+    loadData();
+    
+    // Cleanup para evitar atualizar estado em componente desmontado
+    return () => {
+      mounted = false;
+    };
+  }, []);  // Executar apenas na montagem do componente
 
-  const loading = loadingQRCodes || loadingVideos;
+  const loading = loadingQRCodes || loadingVideos || !dataLoaded;
 
   return (
     <Container className="max-w-4xl">
