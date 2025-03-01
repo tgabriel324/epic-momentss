@@ -16,8 +16,15 @@ const QRScannerPage = () => {
   // Carregar QR codes e vídeos quando a página for montada
   useEffect(() => {
     // Recarregar os dados do banco de dados para garantir dados atualizados
-    fetchQRCodes();
-    fetchVideos();
+    const loadData = async () => {
+      try {
+        await Promise.all([fetchQRCodes(), fetchVideos()]);
+      } catch (error) {
+        console.error("Erro ao carregar dados:", error);
+      }
+    };
+    
+    loadData();
   }, [fetchQRCodes, fetchVideos]);
 
   const loading = loadingQRCodes || loadingVideos;
@@ -67,7 +74,8 @@ const QRScannerPage = () => {
           )}
         </div>
 
-        {qrCodes.length > 0 && videos.length > 0 && (
+        {/* Informações sobre QR Codes e Vídeos disponíveis */}
+        {qrCodes.length > 0 && videos.length > 0 && !loading && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* QR Codes disponíveis */}
             <div className="p-4 bg-muted rounded-lg">
