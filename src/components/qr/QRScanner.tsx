@@ -27,29 +27,25 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [cameraId, setCameraId] = useState<string>("");
   const [cameras, setCameras] = useState<CameraDevice[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [hasPermission, setHasPermission] = useState(true);
   const [scanDebugInfo, setScanDebugInfo] = useState<string | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
-  const [loadingState, setLoadingState] = useState<'initial' | 'loading' | 'loaded' | 'failed'>('initial');
   
   const { videos, getVideoById, fetchVideos } = useVideoStore();
   const { qrCodes, incrementScans, recordScanDetails, fetchQRCodes } = useQRCodeStore();
   
   useEffect(() => {
     console.log("Iniciando carregamento dos dados...");
-    setLoadingState('loading');
+    
     const loadData = async () => {
       try {
-        setDataLoaded(false);
         console.log("Buscando QR codes e vídeos do banco de dados...");
         await Promise.all([fetchQRCodes(), fetchVideos()]);
         console.log(`Dados carregados: ${qrCodes.length} QR codes, ${videos.length} vídeos`);
         setDataLoaded(true);
-        setLoadingState('loaded');
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
-        setLoadingState('failed');
         toast({
           title: "Erro ao carregar dados",
           description: "Não foi possível carregar os QR codes e vídeos. Tente novamente.",
@@ -107,6 +103,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
       }
     };
   }, [dataLoaded]);
+  
   
   const startScanning = async () => {
     if (!cameraId) {
@@ -336,13 +333,12 @@ ${qrCodes.map(qr => `- ${qr.videoTitle} (ID: ${qr.id})`).join('\n')}`);
   };
   
   const forceDataReload = async () => {
-    setLoadingState('loading');
     try {
+      setDataLoaded(false);
       const qrPromise = fetchQRCodes();
       const videoPromise = fetchVideos();
       
       await Promise.all([qrPromise, videoPromise]);
-      setLoadingState('loaded');
       setDataLoaded(true);
       
       toast({
@@ -361,7 +357,6 @@ Exemplos de vídeos:
 ${videos.slice(0, 3).map(v => `- ${v.title} (ID: ${v.id.substring(0, 8)}..., URL: ${v.url ? '✓' : '✗'})`).join('\n')}`);
     } catch (error) {
       console.error("Erro ao recarregar dados:", error);
-      setLoadingState('failed');
       toast({
         title: "Erro ao recarregar dados",
         description: "Ocorreu um erro ao tentar recarregar os dados. Verifique a conexão com o banco de dados.",
@@ -370,7 +365,7 @@ ${videos.slice(0, 3).map(v => `- ${v.title} (ID: ${v.id.substring(0, 8)}..., URL
     }
   };
   
-  if (loadingState === 'loading' || loadingState === 'initial') {
+  if (!dataLoaded) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <div className="animate-spin mb-4">
@@ -420,30 +415,6 @@ ${videos.slice(0, 3).map(v => `- ${v.title} (ID: ${v.id.substring(0, 8)}..., URL
             </div>
           </div>
         )}
-      </div>
-    );
-  }
-  
-  if (loadingState === 'failed') {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 space-y-4">
-        <div className="text-center mb-4">
-          <RefreshCw className="h-12 w-12 text-destructive mx-auto mb-4" />
-          <h3 className="text-lg font-medium mb-2">Falha ao carregar dados</h3>
-          <p className="text-muted-foreground mb-4">
-            Não foi possível carregar os QR codes e vídeos do banco de dados.
-          </p>
-        </div>
-        <div className="flex space-x-4">
-          <Button variant="outline" onClick={onClose}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar
-          </Button>
-          <Button onClick={forceDataReload}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Tentar novamente
-          </Button>
-        </div>
       </div>
     );
   }
