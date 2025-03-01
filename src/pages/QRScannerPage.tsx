@@ -15,6 +15,7 @@ const QRScannerPage = () => {
 
   // Carregar QR codes e vídeos quando a página for montada
   useEffect(() => {
+    console.log("QRScannerPage: Carregando dados...");
     // Recarregar os dados do banco de dados para garantir dados atualizados
     fetchQRCodes();
     fetchVideos();
@@ -62,7 +63,7 @@ const QRScannerPage = () => {
           ) : (
             <QRScanner 
               onClose={() => navigate("/qrcodes")} 
-              forceInitialLoad={true} 
+              forceInitialLoad={false} 
             />
           )}
         </div>
