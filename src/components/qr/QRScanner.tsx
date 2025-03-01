@@ -1,17 +1,13 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useVideoStore } from "@/store/videoStore";
 import { useQRCodeStore } from "@/store/qrCodeStore";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Camera, Download, PauseCircle, PlayCircle, RefreshCw } from "lucide-react";
-import VideoPlayer from "@/components/video/VideoPlayer";
-
-// Definição do tipo CameraDevice que corresponde ao retorno da biblioteca
-interface CameraDevice {
-  id: string;
-  label: string;
-}
+import { ArrowLeft } from "lucide-react";
+import CameraManager from "./CameraManager";
+import QRScanResult from "./QRScanResult";
+import QRScannerTools from "./QRScannerTools";
 
 interface QRScannerProps {
   onClose: () => void;
@@ -19,217 +15,48 @@ interface QRScannerProps {
 }
 
 const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false }) => {
-  const scannerRef = useRef<Html5Qrcode | null>(null);
-  const [scanning, setScanning] = useState(false);
   const [scannedVideo, setScannedVideo] = useState<{
     url: string;
     title: string;
   } | null>(null);
   const [videoPlaying, setVideoPlaying] = useState(false);
-  const [cameraId, setCameraId] = useState<string>("");
-  const [cameras, setCameras] = useState<CameraDevice[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasPermission, setHasPermission] = useState(true);
   const [scanDebugInfo, setScanDebugInfo] = useState<string | null>(null);
-  const [scanInitialized, setScanInitialized] = useState(false);
-  const initializingRef = useRef(false);
+  const [cameraInitialized, setCameraInitialized] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
   
   const { videos, getVideoById, fetchVideos } = useVideoStore();
   const { qrCodes, incrementScans, recordScanDetails, fetchQRCodes } = useQRCodeStore();
   
-  // Carregamento único dos dados
+  // Carregar dados quando o componente montar
   useEffect(() => {
-    console.log("QRScanner montado");
+    console.log("QRScanner montado - carregar dados iniciais");
     
-    return () => {
-      console.log("QRScanner desmontado");
-      if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().catch(error => {
-          console.error("Erro ao parar o scanner:", error);
-        });
-      }
-    };
-  }, []);
-  
-  // Iniciar o escaneamento
-  const startScanning = useCallback(async (camId = cameraId) => {
-    if (!camId) {
-      console.error("Nenhuma câmera selecionada para iniciar o scanner");
-      toast({
-        title: "Câmera não selecionada",
-        description: "Por favor, selecione uma câmera para iniciar o escaneamento.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (scanning) {
-      console.log("Scanner já está em execução, ignorando solicitação de início");
-      return;
-    }
-    
-    if (scannerRef.current && scannerRef.current.isScanning) {
+    const loadInitialData = async () => {
       try {
-        await scannerRef.current.stop();
-        console.log("Scanner anterior parado com sucesso");
-      } catch (error) {
-        console.error("Erro ao parar o scanner existente:", error);
-      }
-    }
-    
-    try {
-      console.log(`Iniciando scanner com câmera ID: ${camId}`);
-      
-      const scannerElement = document.getElementById("qr-reader");
-      if (!scannerElement) {
-        console.error("Elemento #qr-reader não encontrado no DOM");
-        toast({
-          title: "Erro ao iniciar scanner",
-          description: "Elemento do scanner não encontrado.",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      const html5QrCode = new Html5Qrcode("qr-reader");
-      scannerRef.current = html5QrCode;
-      
-      setScanning(true);
-      setScannedVideo(null);
-      setScanInitialized(true);
-      
-      const config = {
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0,
-        disableFlip: false,
-      };
-      
-      await html5QrCode.start(
-        camId,
-        config,
-        (decodedText) => {
-          handleSuccessfulScan(decodedText);
-        },
-        (errorMessage) => {
-          if (errorMessage && typeof errorMessage === 'string' && 
-              errorMessage.includes("No MultiFormat Readers were able to detect the code")) {
-            return;
-          }
-          console.log("Mensagem de erro durante escaneamento:", errorMessage);
+        if (!dataLoaded || forceInitialLoad) {
+          console.log("Carregando dados iniciais...");
+          await Promise.all([
+            fetchQRCodes(),
+            fetchVideos()
+          ]);
+          setDataLoaded(true);
+          console.log(`Dados carregados: ${qrCodes.length} QR codes, ${videos.length} vídeos`);
         }
-      );
-      
-      console.log("Scanner iniciado com sucesso");
-      toast({
-        title: "Scanner iniciado",
-        description: "Posicione um QR code na área indicada para escanear."
-      });
-    } catch (error) {
-      console.error("Erro ao iniciar o scanner:", error);
-      setScanning(false);
-      setScanInitialized(false);
-      
-      toast({
-        title: "Erro ao iniciar o scanner",
-        description: `Verifique as permissões da câmera. Erro: ${error instanceof Error ? error.message : String(error)}`,
-        variant: "destructive"
-      });
-    }
-  }, [cameraId, scanning, toast]);
-  
-  // Parar o escaneamento
-  const stopScanning = async () => {
-    if (scannerRef.current && scannerRef.current.isScanning) {
-      try {
-        await scannerRef.current.stop();
-        console.log("Scanner parado com sucesso");
-        setScanning(false);
-        setScanInitialized(false);
       } catch (error) {
-        console.error("Erro ao parar o scanner:", error);
+        console.error("Erro ao carregar dados iniciais:", error);
         toast({
-          title: "Erro ao parar scanner",
-          description: "Não foi possível parar o scanner corretamente.",
+          title: "Erro ao carregar dados",
+          description: "Ocorreu um erro ao carregar os QR codes e vídeos.",
           variant: "destructive"
         });
       }
-    }
-  };
-  
-  // Inicialização da câmera - separado do useEffect principal
-  useEffect(() => {
-    if (initializingRef.current) {
-      console.log("Inicialização já em andamento, ignorando");
-      return;
-    }
-    
-    initializingRef.current = true;
-    
-    const initializeScanner = async () => {
-      console.log("Iniciando processo de inicialização da câmera...");
-      setIsLoading(true);
-      
-      try {
-        try {
-          await navigator.mediaDevices.getUserMedia({ video: true });
-          setHasPermission(true);
-        } catch (permError) {
-          console.error("Erro de permissão da câmera:", permError);
-          setHasPermission(false);
-          setIsLoading(false);
-          initializingRef.current = false;
-          return;
-        }
-        
-        try {
-          const devices = await Html5Qrcode.getCameras();
-          console.log("Câmeras disponíveis:", devices);
-          
-          if (devices && devices.length) {
-            setCameras(devices);
-            setCameraId(devices[0].id);
-            
-            setTimeout(() => {
-              startScanning(devices[0].id);
-              setIsLoading(false);
-              initializingRef.current = false;
-            }, 1000);
-          } else {
-            console.warn("Nenhuma câmera encontrada");
-            toast({
-              title: "Câmera não encontrada",
-              description: "Não foi possível encontrar uma câmera no seu dispositivo.",
-              variant: "destructive"
-            });
-            setHasPermission(false);
-            setIsLoading(false);
-            initializingRef.current = false;
-          }
-        } catch (camError) {
-          console.error("Erro ao acessar lista de câmeras:", camError);
-          toast({
-            title: "Erro ao listar câmeras",
-            description: "Não foi possível listar as câmeras disponíveis.",
-            variant: "destructive"
-          });
-          setIsLoading(false);
-          initializingRef.current = false;
-        }
-      } catch (error) {
-        console.error("Erro geral de inicialização:", error);
-        setHasPermission(false);
-        setIsLoading(false);
-        initializingRef.current = false;
-      }
     };
     
-    initializeScanner();
-  }, [startScanning, toast]);
+    loadInitialData();
+  }, [fetchQRCodes, fetchVideos, forceInitialLoad, qrCodes.length, videos.length, dataLoaded]);
   
-  const handleSuccessfulScan = (decodedText: string) => {
-    stopScanning();
-    
+  // Função para processar o escaneamento do QR code
+  const handleScan = (decodedText: string) => {
     console.log("QR Code escaneado:", decodedText);
     console.log("QR codes disponíveis:", qrCodes);
     console.log("Vídeos disponíveis:", videos);
@@ -241,7 +68,6 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
         description: "Não há QR codes cadastrados no sistema para comparação.",
         variant: "destructive"
       });
-      startScanning();
       return;
     }
     
@@ -274,7 +100,6 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
           description: "Este QR code não tem um vídeo associado.",
           variant: "destructive"
         });
-        startScanning();
         return;
       }
       
@@ -314,8 +139,6 @@ ${videos.map(v => `- ${v.title} (ID: ${v.id})`).join('\n')}`);
           description: "O vídeo associado a este QR code não foi encontrado. O ID pode estar incorreto ou o vídeo foi removido.",
           variant: "destructive"
         });
-        
-        startScanning();
       }
     } else {
       console.log("QR code não encontrado:", decodedText);
@@ -329,51 +152,10 @@ ${qrCodes.map(qr => `- ${qr.videoTitle} (ID: ${qr.id})`).join('\n')}`);
         description: "Este QR code não corresponde a nenhum dos QR codes cadastrados.",
         variant: "destructive"
       });
-      
-      startScanning();
     }
   };
   
-  const changeCamera = async (deviceId: string) => {
-    if (scanning) {
-      await stopScanning();
-    }
-    
-    setCameraId(deviceId);
-    
-    setTimeout(() => startScanning(deviceId), 500);
-  };
-
-  const requestCameraPermission = async () => {
-    try {
-      await navigator.mediaDevices.getUserMedia({ video: true });
-      setHasPermission(true);
-      
-      initializingRef.current = false;
-      
-      const devices = await Html5Qrcode.getCameras();
-      if (devices && devices.length) {
-        setCameras(devices);
-        setCameraId(devices[0].id);
-        
-        setTimeout(() => startScanning(devices[0].id), 500);
-      } else {
-        toast({
-          title: "Nenhuma câmera encontrada",
-          description: "Seu dispositivo não possui câmeras disponíveis.",
-          variant: "destructive"
-        });
-      }
-    } catch (error) {
-      console.error("Erro ao solicitar permissão da câmera:", error);
-      toast({
-        title: "Permissão negada",
-        description: "Você precisa conceder permissão para a câmera para usar o scanner.",
-        variant: "destructive"
-      });
-    }
-  };
-  
+  // Funções de ferramenta
   const exportDebugInfo = () => {
     if (!scanDebugInfo) return;
     
@@ -431,199 +213,42 @@ ${videos.slice(0, 3).map(v => `- ${v.title} (ID: ${v.id.substring(0, 8)}..., URL
     }
   };
   
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12">
-        <div className="animate-spin mb-4">
-          <RefreshCw className="h-8 w-8 text-primary" />
-        </div>
-        <p className="text-center text-muted-foreground">
-          Inicializando câmera...
-        </p>
-      </div>
-    );
-  }
-
-  if (!hasPermission) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 space-y-4">
-        <div className="text-center mb-4">
-          <Camera className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium mb-2">Permissão da Câmera Necessária</h3>
-          <p className="text-muted-foreground mb-4">
-            Para escanear QR codes, você precisa permitir o acesso à câmera do seu dispositivo.
-          </p>
-        </div>
-        <div className="flex space-x-4">
-          <Button variant="outline" onClick={onClose}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar
-          </Button>
-          <Button onClick={requestCameraPermission}>
-            <Camera className="mr-2 h-4 w-4" />
-            Permitir Acesso
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  // Função para reiniciar o escaneamento
+  const handleScanAgain = () => {
+    setScannedVideo(null);
+    setVideoPlaying(false);
+  };
   
   return (
     <div className="flex flex-col space-y-4">
-      {cameras.length > 0 && (
-        <div className="mb-4">
-          <label htmlFor="camera-select" className="block text-sm font-medium mb-2">
-            Selecione a câmera:
-          </label>
-          <select
-            id="camera-select"
-            className="bg-background border border-input rounded-md w-full p-2"
-            value={cameraId}
-            onChange={(e) => changeCamera(e.target.value)}
-          >
-            {cameras.map((camera) => (
-              <option key={camera.id} value={camera.id}>
-                {camera.label || `Câmera ${camera.id.substring(0, 5)}...`}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-      
-      <div className="relative aspect-square md:aspect-video w-full">
-        {!scannedVideo ? (
-          <div className="h-full">
-            <div 
-              id="qr-reader" 
-              className="w-full h-full rounded-lg overflow-hidden"
-            ></div>
-            
-            {scanning && (
-              <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-                <div className="w-64 h-64 border-2 border-primary border-dashed rounded-lg flex items-center justify-center">
-                  <div className="text-primary text-center px-4 py-2 bg-background/80 rounded-md">
-                    Posicione o QR Code aqui
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {!scanning && !scanInitialized && (
-              <div className="absolute inset-0 flex items-center justify-center border-2 border-dashed border-primary rounded-lg">
-                <div className="text-center p-4">
-                  <Camera className="h-8 w-8 text-primary mx-auto mb-2" />
-                  <p className="text-primary">Clique em "Iniciar Scanner" para ativar a câmera</p>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="w-full h-full relative bg-black rounded-lg overflow-hidden">
-            <VideoPlayer
-              videoUrl={scannedVideo.url}
-              autoPlay={videoPlaying}
-              loop={true}
-              controls={true}
-              className="w-full h-full object-contain"
-              onLoadedData={() => setVideoPlaying(true)}
-            />
-            
-            <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent p-4">
-              <h3 className="text-white font-medium text-lg">{scannedVideo.title}</h3>
-            </div>
-          </div>
-        )}
-      </div>
-      
-      <div className="flex justify-center mt-4 space-x-4">
-        {!scannedVideo ? (
-          <Button
-            className="w-full sm:w-auto"
-            onClick={scanning ? stopScanning : () => startScanning()}
-            variant={scanning ? "destructive" : "default"}
-          >
-            {scanning ? (
-              <>
-                <PauseCircle className="mr-2 h-5 w-5" />
-                Parar Scanner
-              </>
-            ) : (
-              <>
-                <Camera className="mr-2 h-5 w-5" />
-                Iniciar Scanner
-              </>
-            )}
+      {!cameraInitialized && !scannedVideo && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={onClose}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar
           </Button>
-        ) : (
-          <div className="flex flex-col sm:flex-row w-full space-y-2 sm:space-y-0 sm:space-x-4">
-            <Button 
-              variant="outline" 
-              className="w-full sm:w-auto"
-              onClick={() => {
-                setScannedVideo(null);
-                startScanning();
-              }}
-            >
-              <Camera className="mr-2 h-5 w-5" />
-              Escanear novamente
-            </Button>
-            <Button 
-              variant={videoPlaying ? "destructive" : "default"}
-              className="w-full sm:w-auto"
-              onClick={() => setVideoPlaying(!videoPlaying)}
-            >
-              {videoPlaying ? (
-                <>
-                  <PauseCircle className="mr-2 h-5 w-5" />
-                  Pausar
-                </>
-              ) : (
-                <>
-                  <PlayCircle className="mr-2 h-5 w-5" />
-                  Reproduzir
-                </>
-              )}
-            </Button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
       
-      {!scannedVideo && !scanning && !scanInitialized && (
-        <div className="mt-4 text-center text-muted-foreground">
-          <p>Toque em "Iniciar Scanner" para escanear um QR Code.</p>
-          <p className="text-sm mt-1">Posicione o QR Code em frente à câmera para detectá-lo.</p>
-        </div>
+      {!scannedVideo ? (
+        <CameraManager 
+          onScan={handleScan} 
+          onCameraInitialized={setCameraInitialized}
+        />
+      ) : (
+        <QRScanResult 
+          scannedVideo={scannedVideo}
+          videoPlaying={videoPlaying}
+          setVideoPlaying={setVideoPlaying}
+          onScanAgain={handleScanAgain}
+        />
       )}
-
-      {scanDebugInfo && (
-        <div className="mt-4 p-3 bg-muted rounded-md text-sm">
-          <div className="flex justify-between items-center mb-1">
-            <p className="font-medium">Informações de diagnóstico:</p>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={exportDebugInfo}
-              disabled={!scanDebugInfo}
-            >
-              <Download className="h-4 w-4 mr-1" />
-              Exportar
-            </Button>
-          </div>
-          <pre className="whitespace-pre-wrap text-xs">{scanDebugInfo}</pre>
-        </div>
-      )}
-
-      <div className="mt-4">
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="w-full"
-          onClick={forceDataReload}
-        >
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Recarregar QR Codes e Vídeos
-        </Button>
-      </div>
+      
+      <QRScannerTools 
+        scanDebugInfo={scanDebugInfo}
+        onExportDebugInfo={exportDebugInfo}
+        onForceDataReload={forceDataReload}
+      />
     </div>
   );
 };
