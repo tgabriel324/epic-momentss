@@ -31,12 +31,14 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
   const [hasPermission, setHasPermission] = useState(true);
   const [scanDebugInfo, setScanDebugInfo] = useState<string | null>(null);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [loadingState, setLoadingState] = useState<'initial' | 'loading' | 'loaded' | 'failed'>('initial');
   
   const { videos, getVideoById, fetchVideos } = useVideoStore();
   const { qrCodes, incrementScans, recordScanDetails, fetchQRCodes } = useQRCodeStore();
   
   useEffect(() => {
     console.log("Iniciando carregamento dos dados...");
+    setLoadingState('loading');
     const loadData = async () => {
       try {
         setDataLoaded(false);
@@ -44,8 +46,10 @@ const QRScanner: React.FC<QRScannerProps> = ({ onClose, forceInitialLoad = false
         await Promise.all([fetchQRCodes(), fetchVideos()]);
         console.log(`Dados carregados: ${qrCodes.length} QR codes, ${videos.length} vídeos`);
         setDataLoaded(true);
+        setLoadingState('loaded');
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
+        setLoadingState('failed');
         toast({
           title: "Erro ao carregar dados",
           description: "Não foi possível carregar os QR codes e vídeos. Tente novamente.",
@@ -332,11 +336,14 @@ ${qrCodes.map(qr => `- ${qr.videoTitle} (ID: ${qr.id})`).join('\n')}`);
   };
   
   const forceDataReload = async () => {
+    setLoadingState('loading');
     try {
       const qrPromise = fetchQRCodes();
       const videoPromise = fetchVideos();
       
       await Promise.all([qrPromise, videoPromise]);
+      setLoadingState('loaded');
+      setDataLoaded(true);
       
       toast({
         title: "Dados recarregados",
@@ -354,6 +361,7 @@ Exemplos de vídeos:
 ${videos.slice(0, 3).map(v => `- ${v.title} (ID: ${v.id.substring(0, 8)}..., URL: ${v.url ? '✓' : '✗'})`).join('\n')}`);
     } catch (error) {
       console.error("Erro ao recarregar dados:", error);
+      setLoadingState('failed');
       toast({
         title: "Erro ao recarregar dados",
         description: "Ocorreu um erro ao tentar recarregar os dados. Verifique a conexão com o banco de dados.",
@@ -362,26 +370,80 @@ ${videos.slice(0, 3).map(v => `- ${v.title} (ID: ${v.id.substring(0, 8)}..., URL
     }
   };
   
-  if (isLoading || !dataLoaded) {
+  if (loadingState === 'loading' || loadingState === 'initial') {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <div className="animate-spin mb-4">
           <RefreshCw className="h-8 w-8 text-primary" />
         </div>
         <p className="text-center text-muted-foreground">
-          {!dataLoaded ? "Carregando dados..." : "Inicializando câmera..."}
+          Carregando dados...
         </p>
-        {(!dataLoaded && videos.length === 0 && qrCodes.length === 0) && (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="mt-4"
-            onClick={forceDataReload}
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="mt-4"
+          onClick={forceDataReload}
+        >
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Tentar novamente
+        </Button>
+        
+        {qrCodes.length > 0 && videos.length > 0 && (
+          <div className="mt-8 max-w-md mx-auto w-full">
+            <div className="bg-muted p-4 rounded-lg text-sm">
+              <h3 className="font-medium mb-2">Dados disponíveis:</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-medium mb-1">QR Codes disponíveis:</h4>
+                  <ul className="list-disc pl-5 text-xs space-y-1">
+                    {qrCodes.slice(0, 3).map(qr => (
+                      <li key={qr.id} className="text-muted-foreground">
+                        {qr.videoTitle} (ID: {qr.id.substring(0, 8)}...)
+                      </li>
+                    ))}
+                    {qrCodes.length > 3 && <li className="text-muted-foreground">E mais {qrCodes.length - 3}...</li>}
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-1">Vídeos disponíveis:</h4>
+                  <ul className="list-disc pl-5 text-xs space-y-1">
+                    {videos.slice(0, 3).map(v => (
+                      <li key={v.id} className="text-muted-foreground">
+                        {v.title} (ID: {v.id.substring(0, 8)}...)
+                      </li>
+                    ))}
+                    {videos.length > 3 && <li className="text-muted-foreground">E mais {videos.length - 3}...</li>}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  if (loadingState === 'failed') {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 space-y-4">
+        <div className="text-center mb-4">
+          <RefreshCw className="h-12 w-12 text-destructive mx-auto mb-4" />
+          <h3 className="text-lg font-medium mb-2">Falha ao carregar dados</h3>
+          <p className="text-muted-foreground mb-4">
+            Não foi possível carregar os QR codes e vídeos do banco de dados.
+          </p>
+        </div>
+        <div className="flex space-x-4">
+          <Button variant="outline" onClick={onClose}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar
+          </Button>
+          <Button onClick={forceDataReload}>
+            <RefreshCw className="mr-2 h-4 w-4" />
             Tentar novamente
           </Button>
-        )}
+        </div>
       </div>
     );
   }
@@ -406,6 +468,19 @@ ${videos.slice(0, 3).map(v => `- ${v.title} (ID: ${v.id.substring(0, 8)}..., URL
             Permitir Acesso
           </Button>
         </div>
+      </div>
+    );
+  }
+  
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <div className="animate-spin mb-4">
+          <RefreshCw className="h-8 w-8 text-primary" />
+        </div>
+        <p className="text-center text-muted-foreground">
+          Inicializando câmera...
+        </p>
       </div>
     );
   }
